@@ -1,6 +1,6 @@
 # MSCognitiveServices
 
-Package that supplies a number of Microsoft services and implements the TTSService and TextTranslatorSerivce protocols. 
+Package that supplies a number of Microsoft services and implements the TTSService and TextTranslationService protocols. 
 
 ## TODO
 
