@@ -67,7 +67,7 @@ private struct UtteranceFileInfo {
     var playFromCache: Bool
     init(utterance: TTSUtterance,ssml:String) {
         let fm = FileManager.default
-        let cacheDir = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("MSTTSCache3")
+        let cacheDir = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("MSTTSCache4")
         let id = Self.hash(string: ssml)
         self.audioFileName = id + "\(utterance.voice.locale.identifier).wav"
         self.wordBoundaryName = id + "\(utterance.voice.locale.identifier).json"
@@ -98,6 +98,7 @@ private struct UtteranceFileInfo {
     func deleteCache() {
         try? FileManager.default.removeItem(atPath: audioFileUrl.path)
         try? FileManager.default.removeItem(atPath: wordBoundaryUrl.path)
+        debugPrint("DELETED MSTTS file cache",audioFileUrl.path,wordBoundaryUrl.path)
     }
     static func hash(string:String) -> String {
         let inputString = string
@@ -306,6 +307,7 @@ class MSSpeechSynthesizer {
                         try JSONEncoder().encode(this.wordBoundaries).write(to: fileInfo.wordBoundaryUrl)
                     } catch {
                         this.logger.error(error)
+                        fileInfo.deleteCache()
                     }
                 }
             }
@@ -317,6 +319,7 @@ class MSSpeechSynthesizer {
                         let cancellationDetails = try SPXSpeechSynthesisCancellationDetails(fromCanceledSynthesisResult: result)
                         DispatchQueue.main.async {
                             completionHandler(MSSpeechSynthesizerError.cancellationError(cancellationDetails.errorDetails ?? "Cancelled"))
+                            fileInfo.deleteCache()
                         }
                     } else {
                         DispatchQueue.main.async {
@@ -326,12 +329,14 @@ class MSSpeechSynthesizer {
                 } catch {
                     DispatchQueue.main.async {
                         completionHandler(error)
+                        fileInfo.deleteCache()
                     }
                 }
                 self?.synthesizer = nil
             }
         } catch {
             completionHandler(error)
+            fileInfo.deleteCache()
             self.synthesizer = nil
         }
     }
