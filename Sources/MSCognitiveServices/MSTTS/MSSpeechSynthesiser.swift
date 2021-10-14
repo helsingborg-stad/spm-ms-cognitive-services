@@ -157,6 +157,7 @@ class MSSpeechSynthesizer {
             }
             synthesizer = nil
         } catch {
+            debugPrint(error)
             currentUtterance = nil
             synthesizer = nil
             logger.error(error)
@@ -172,8 +173,8 @@ class MSSpeechSynthesizer {
         if utterance.id == currentUtterance?.id {
             return
         }
-        if let u = currentUtterance {
-            delegate?.speechSynthesizer(self, didCancel: u)
+        if currentUtterance != nil {
+            stopSpeaking()
         }
         currentUtterance = utterance
         self.delegate?.speechSynthesizer(self, preparing: utterance)
@@ -232,16 +233,20 @@ class MSSpeechSynthesizer {
                 return
             }
             if item.status == .cancelled {
-                this.playerPublisher = nil
-                this.currentUtterance = nil
-                this.wordBoundaries = []
+                if this.currentUtterance == utterance {
+                    this.playerPublisher = nil
+                    this.currentUtterance = nil
+                    this.wordBoundaries = []
+                }
                 this.delegate?.speechSynthesizer(this, didCancel: utterance)
             } else if item.status == .started {
                 this.delegate?.speechSynthesizer(this, didStart: utterance)
             } else if item.status == .stopped {
-                this.playerPublisher = nil
-                this.currentUtterance = nil
-                this.wordBoundaries = []
+                if this.currentUtterance == utterance {
+                    this.playerPublisher = nil
+                    this.currentUtterance = nil
+                    this.wordBoundaries = []
+                }
                 this.delegate?.speechSynthesizer(this, didFinish: utterance)
             } else if item.status == .failed, let error = item.error {
                 this.delegate?.speechSynthesizer(this, didFail: utterance, with: error)
