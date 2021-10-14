@@ -3,22 +3,25 @@ import Combine
 import Shout
 import TextTranslator
 
-let maxChars = 4999
+// https://docs.microsoft.com/en-us/azure/cognitive-services/translator/request-limits
+let maxChars = 9999
 let maxStrings = 99
-
+let charsPerMinute = 30000
+var totalChars = 0
 private func reduce(_ texts: inout [String], _ res: [String] = [], _ count: Int = 0, multiplier:Int = 1) -> ([String], Int) {
     guard texts.isEmpty == false, let string = texts.first else {
         return (res, count)
     }
+    let mc = maxChars / multiplier
     let numChars = string.count * multiplier
-    if numChars > maxChars {
+    if numChars > mc {
         texts.removeFirst()
         return reduce(&texts, res, count, multiplier:multiplier)
     }
     if res.count + 1 >= maxStrings {
         return (res, count)
     }
-    if numChars + count > maxChars {
+    if numChars + count > mc {
         return (res, count)
     }
     var r = [string]
@@ -80,6 +83,11 @@ private extension TextTransaltionTable {
         }
     }
 }
+func convertVariables(string:String,find:String,replaceWith:String) -> String {
+    let regex = try! NSRegularExpression(pattern: find, options: NSRegularExpression.Options.caseInsensitive)
+    let range = NSMakeRange(0, string.count)
+    return regex.stringByReplacingMatches(in: string, options: [], range: range, withTemplate: replaceWith)
+}
 private func getTranslations(token: String, texts: [String], from: LanguageKey, to: [LanguageKey]) -> AnyPublisher<[MSTranslationResult],Error> {
     guard let endpoint = URL(string: "https://api-eur.cognitive.microsofttranslator.com/translate") else {
         return Fail(error: MSTranslatorError.urlParse).eraseToAnyPublisher()
@@ -96,16 +104,6 @@ private func getTranslations(token: String, texts: [String], from: LanguageKey, 
     guard let url = components.url else {
         return Fail(error: MSTranslatorError.urlParse).eraseToAnyPublisher()
     }
-    func convertVariables(string:String,find:String,replaceWith:String) -> String {
-        let regex = try! NSRegularExpression(pattern: find, options: NSRegularExpression.Options.caseInsensitive)
-        let range = NSMakeRange(0, string.count)
-        return regex.stringByReplacingMatches(in: string, options: [], range: range, withTemplate: replaceWith)
-    }
-    var texts = texts
-    for (index,text) in texts.enumerated() {
-        texts[index] = convertVariables(string: text, find: "%@", replaceWith: "<span translate='no'>string</span>")
-    }
-    
     var request: URLRequest
     request = URLRequest(url: url)
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -171,6 +169,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             self.authenticator = MSCognitiveAuthenticator(key: config.key, region: config.region)
         }
     }
+
     private func translate(texts: [String], from: LanguageKey, to: [LanguageKey]) -> AnyPublisher<[MSTranslationResult],Error> {
         let completionSubject = PassthroughSubject<[MSTranslationResult],Error>()
         var untranslated = texts
@@ -183,7 +182,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             var languages = languages
             var langs = [LanguageKey]()
             for lang in languages {
-                if numchars * (1 + langs.count) >= maxChars {
+                if numchars * (1 + langs.count) >= (maxChars/(1 + langs.count)) {
                     break
                 }
                 langs.append(lang)
@@ -251,7 +250,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         for (key,value) in texts {
             for lang in to {
                 if !table.exists(lang: lang, key: key) {
-                    untranslated.append(value)
+                    untranslated.append(convertVariables(string: value, find: "%@", replaceWith: "<span translate='no'>string</span>"))
                     keys[value] = key
                     break
                 }
