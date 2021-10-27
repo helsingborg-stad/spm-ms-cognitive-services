@@ -66,18 +66,18 @@ struct MSResult: Codable {
         }
     }
 }
-private extension TextTransaltionTable {
+private extension TextTranslationTable {
     mutating func updateTranslations(forKey key:String, from: LanguageKey, to: [LanguageKey], using result:MSTranslationResult) {
-        self[from, key] = result.text
+        self.set(value: result.text, for: key, in: from)
         for (langKey, value) in result.translations {
-            self[langKey, key] = value
+            self.set(value: value, for: key, in: langKey)
             for l in to {
                 guard let t = l.split(separator: "-").first else {
                     continue
                 }
                 let lang = String(t)
                 if langKey == lang {
-                    self[l, key] = value
+                    self.set(value: value, for: key, in: l)
                 }
             }
         }
@@ -237,7 +237,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         fetch()
         return completionSubject.eraseToAnyPublisher()
     }
-    @discardableResult final public func translate(_ texts: [TranslationKey : String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTransaltionTable) -> FinishedPublisher {
+    final public func translate(_ texts: [TranslationKey : String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) -> FinishedPublisher {
         var table = table
         var to = to
         to.removeAll { $0 == from }
@@ -249,7 +249,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         var keys = [String:String]()
         for (key,value) in texts {
             for lang in to {
-                if !table.exists(lang: lang, key: key) {
+                if !table.translationExists(forKey: key, in: lang) {
                     untranslated.append(convertVariables(string: value, find: "%@", replaceWith: "<span translate='no'>string</span>"))
                     keys[value] = key
                     break
@@ -261,7 +261,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             return CurrentValueSubject(table).receive(on: DispatchQueue.main).eraseToAnyPublisher()
         }
         logger.info("\(untranslated.count) strings requires translation")
-        return self.translate(texts: untranslated, from: from, to: to).map { results -> TextTransaltionTable in
+        return self.translate(texts: untranslated, from: from, to: to).map { results -> TextTranslationTable in
             for res in results {
                 guard let key = keys[res.text] else {
                     continue
@@ -271,14 +271,14 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             return table
         }.receive(on: DispatchQueue.main).eraseToAnyPublisher()
     }
-    @discardableResult final public func translate(_ texts: [String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTransaltionTable) -> FinishedPublisher {
+    final public func translate(_ texts: [String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) -> FinishedPublisher {
         var dict = [TranslationKey : String]()
         texts.forEach { s in
             dict[s] = s
         }
         return translate(dict, from: from, to: to, storeIn: table)
     }
-    @discardableResult final public func translate(_ text: String, from: LanguageKey, to: LanguageKey) -> TranslatedPublisher {
+    final public func translate(_ text: String, from: LanguageKey, to: LanguageKey) -> TranslatedPublisher {
         return translate(texts: [text], from: from, to: [to]).tryMap { results -> TranslatedString in
             for res in results  {
                 for (langKey, value) in res.translations {
