@@ -130,17 +130,16 @@ class MSSpeechSynthesizer {
     private var logger = Shout("MSSpeechSynthesizer")
     private var synthesizer: SPXSpeechSynthesizer?
     private var currentUtterance: TTSUtterance?
-    private var gettingVoices = false
-    public var config: MSTTS.Config?
     private var playerPublisher: AnyCancellable?
     private var timePublisher: AnyCancellable?
     private var wordBoundaries = [MSWordBoundary]()
     private (set) var audioPlayer:MSBufferAudioPlayer
-
     weak var delegate: MSSpeechSynthesizerDelegate?
+    
     var enableWordBoundary = true
     var pronunciations = [MSPronunciation]()
-
+    var config: MSTTS.Config?
+    
     init(_ config: MSTTS.Config?, audioSwitchboard:AudioSwitchboard) {
         self.config = config
         self.audioPlayer = MSBufferAudioPlayer(audioSwitchboard)
@@ -169,7 +168,7 @@ class MSSpeechSynthesizer {
     func `continue`() {
         audioPlayer.continue()
     }
-    func speak(_ utterance: TTSUtterance) {
+    func speak(_ utterance: TTSUtterance, using voice:MSSpeechVoice) {
         if utterance.id == currentUtterance?.id {
             return
         }
@@ -178,34 +177,6 @@ class MSSpeechSynthesizer {
         }
         currentUtterance = utterance
         self.delegate?.speechSynthesizer(self, preparing: utterance)
-        if !MSSpeechVoice.voices.isEmpty {
-            self.synthesize()
-            return
-        }
-        if gettingVoices {
-            return
-        }
-        guard let config = config else {
-            delegate?.speechSynthesizer(self, didFail: utterance, with: MSSpeechSynthesizerError.cancellationError("missing configuration"))
-            return
-        }
-        gettingVoices = true
-        MSSpeechVoice.getVoices(using: config) { [weak self] (error) in
-            if let error = error {
-                self?.logger.error(error)
-            }
-            self?.gettingVoices = false
-            self?.synthesize()
-        }
-    }
-    private func synthesize() {
-        guard let utterance = currentUtterance else {
-            return
-        }
-        guard let voice = MSSpeechVoice.bestvoice(for: utterance.voice.locale, with: utterance.voice.gender) else {
-            self.delegate?.speechSynthesizer(self, didFail: utterance, with: MSUtteranceError.missingVoice)
-            return
-        }
         let ssml = convertToSSML(utterance: utterance, voice: voice, pronunciations: pronunciations)
         let fileInfo = UtteranceFileInfo(utterance: utterance,ssml:ssml)
         if fileInfo.playFromCache {

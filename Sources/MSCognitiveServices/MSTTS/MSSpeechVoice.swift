@@ -13,14 +13,8 @@ import Shout
 import MicrosoftCognitiveServicesSpeech
 
 extension String {
-    func capitalizingFirstLetter() -> String {
-        return prefix(1).capitalized + dropFirst()
-    }
     func deCapitalizingFirstLetter() -> String {
         return prefix(1).lowercased() + dropFirst()
-    }
-    mutating func capitalizeFirstLetter() {
-        self = self.capitalizingFirstLetter()
     }
 }
 extension JSONDecoder {
@@ -44,22 +38,18 @@ extension JSONDecoder {
         return JSONDecoder.AnyKey(stringValue: camelCaseValue)!
     })
 }
-
-internal struct MSSpeechVoice: Codable, Equatable {
-    typealias MSLanguage = String
-    typealias MSSpeechVoicesResult = [MSLanguage: [VoiceType: [MSSpeechVoice]]]
-    enum MSVoiceError: Error {
-        case urlParse
-        case missingAuthenticationToken
-        case missingAPIKey
-        case missingRegion
-        case missingContent
-    }
-    enum VoiceType: String, Codable {
+public enum MSSpeechVoiceError: Error {
+    case missingContent
+}
+public struct MSSpeechVoice: Codable, Equatable {
+    public typealias MSLanguage = String
+    public typealias Directory = [MSLanguage: [VoiceType: [MSSpeechVoice]]]
+    
+    public enum VoiceType: String, Codable {
         case standard
         case neural
     }
-    enum VoiceStyle: String, Codable {
+    public enum VoiceStyle: String, Codable {
         case affectionate = "affectionate"
         case angry = "angry"
         case assistant = "assistant"
@@ -80,23 +70,23 @@ internal struct MSSpeechVoice: Codable, Equatable {
         case sad = "sad"
         case serious = "serious"
     }
-    var id: String {
+    public var id: String {
         return shortName
     }
-    var name: String
-    var displayName: String
-    var localName: String
-    var shortName: String
-    var gender: TTSGender
-    var locale: String
-    var language: String
-    var sampleRateHertz: String
-    var voiceType: VoiceType
-    var status: String
-    var styleList: [String]
-    var rolePlayList: [String]
+    public let name: String
+    public let displayName: String
+    public let localName: String
+    public let shortName: String
+    public let gender: TTSGender
+    public let locale: String
+    public let language: String
+    public let sampleRateHertz: String
+    public let voiceType: VoiceType
+    public let status: String
+    public let styleList: [String]
+    public let rolePlayList: [String]
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         self.name = try values.decode(String.self, forKey: .name)
         self.displayName = try values.decode(String.self, forKey: .displayName)
@@ -121,66 +111,50 @@ internal struct MSSpeechVoice: Codable, Equatable {
         }
         self.status = try values.decode(String.self, forKey: .status)
     }
-    var outputFormat: SPXSpeechSynthesisOutputFormat {
+    public var outputFormat: SPXSpeechSynthesisOutputFormat {
         if sampleRateHertz == "24000" {
             return SPXSpeechSynthesisOutputFormat.riff24Khz16BitMonoPcm
+        } else if sampleRateHertz == "16000" {
+            return SPXSpeechSynthesisOutputFormat.riff16Khz16BitMonoPcm
         }
-        return SPXSpeechSynthesisOutputFormat.riff16Khz16BitMonoPcm
+        return SPXSpeechSynthesisOutputFormat.riff8Khz16BitMonoPcm
     }
-    static private var sub: AnyCancellable?
-    static var voices = MSSpeechVoicesResult()
-    static func getVoices(using config: MSTTS.Config, _ completionHandler: @escaping (Error?) -> Void) {
-        if !voices.isEmpty {
-            completionHandler(MSVoiceError.missingContent)
-            return
+    public static func publisher(token:String, region:String) -> AnyPublisher<Directory,Error> {
+        guard let endpoint = URL(string: "https://\(region).tts.speech.microsoft.com/cognitiveservices/voices/list") else {
+            return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
         }
-        let a = MSCognitiveAuthenticator(key: config.key, region: config.region)
-        sub = a.getToken().sink { completion in
-            switch completion {
-            case .failure(let error): completionHandler(error)
-            case .finished: break
-            }
-        } receiveValue: { token in
-            guard let endpoint = URL(string: "https://\(config.region).tts.speech.microsoft.com/cognitiveservices/voices/list") else {
-                return
-            }
-            var request = URLRequest(url: endpoint)
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            request.httpMethod = "GET"
-            URLSession.shared.dataTask(with: request) { (data, _, error) in
-                DispatchQueue.main.async {
-                    guard let data = data else {
-                        completionHandler(error ?? MSVoiceError.missingContent)
-                        return
+        let d = JSONDecoder()
+        d.keyDecodingStrategy = JSONDecoder.camelCapsToCamelCaseStrategy
+        var request = URLRequest(url: endpoint)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpMethod = "GET"
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap { $0.data }
+            .decode(type: [MSSpeechVoice].self, decoder: d)
+            .map { voices -> Directory in
+                var res = Directory()
+                for identifier in Locale.availableIdentifiers {
+                    let lang = Locale(identifier: identifier)
+                    guard let code = lang.languageCode else {
+                        continue
                     }
-                    let d = JSONDecoder()
-                    d.keyDecodingStrategy = JSONDecoder.camelCapsToCamelCaseStrategy
-                    do {
-                        let voices = try d.decode([MSSpeechVoice].self, from: data)
-                        var res = MSSpeechVoicesResult()
-                        for identifier in Locale.availableIdentifiers {
-                            let lang = Locale(identifier: identifier)
-                            guard let code = lang.languageCode else {
-                                continue
-                            }
-                            let arr = voices.filter({ v in v.locale == lang.identifier || v.language == code })
-                            var dict = [VoiceType: [MSSpeechVoice]]()
-                            dict[.standard] = arr.filter({ v in (v.locale == lang.identifier || v.language == code) && v.voiceType == .standard })
-                            dict[.neural] = arr.filter({ v in (v.locale == lang.identifier || v.language == code) && v.voiceType == .neural })
-                            res[code] = dict
-                        }
-                        self.voices = res
-                        completionHandler(nil)
-                    } catch {
-                        completionHandler(error)
-                    }
+                    let arr = voices.filter({ v in v.locale == lang.identifier || v.language == code })
+                    var dict = [VoiceType: [MSSpeechVoice]]()
+                    dict[.standard] = arr.filter({ v in (v.locale == lang.identifier || v.language == code) && v.voiceType == .standard })
+                    dict[.neural] = arr.filter({ v in (v.locale == lang.identifier || v.language == code) && v.voiceType == .neural })
+                    res[code] = dict
                 }
-            }.resume()
-        }
+                return res
+            }.eraseToAnyPublisher()
     }
-    static func bestvoice(for locale: Locale, with gender: TTSGender) -> MSSpeechVoice? {
+    public static func publisher(using config: MSTTS.Config) -> AnyPublisher<Directory,Error> {
+        MSCognitiveAuthenticator(key: config.key, region: config.region).getToken().flatMap { token -> AnyPublisher<Directory,Error> in
+            Self.publisher(token: token, region: config.region)
+        }.eraseToAnyPublisher()
+    }
+    public static func bestvoice(in dictionary:Directory, for locale: Locale, with gender: TTSGender) -> MSSpeechVoice? {
         let code = locale.languageCode ?? locale.identifier
-        guard let voices = voices[code] else {
+        guard let voices = dictionary[code] else {
             return nil
         }
         if locale.regionCode != nil {
@@ -202,5 +176,30 @@ internal struct MSSpeechVoice: Codable, Equatable {
             return v
         }
         return nil
+    }
+    public static func hasSupport(for locale: Locale, in dictionary:Directory, gender:TTSGender) -> Bool {
+        let code = locale.languageCode ?? locale.identifier
+        guard let voices = dictionary[code] else {
+            return false
+        }
+        if let arr = voices[.neural], arr.contains(where: { v in v.gender == gender }) {
+            return true
+        } else if let arr = voices[.standard], arr.contains(where: { v in v.gender == gender }) {
+            return true
+        }
+        return false
+    }
+    public static func hasSupport(for locale: Locale, in dictionary:Directory) -> Bool {
+        let code = locale.languageCode ?? locale.identifier
+        guard let voices = dictionary[code] else {
+            return false
+        }
+       
+        if let a = voices[.neural], a.count > 0 {
+            return true
+        } else if let a = voices[.standard], a.count > 0 {
+            return true
+        }
+        return false
     }
 }
