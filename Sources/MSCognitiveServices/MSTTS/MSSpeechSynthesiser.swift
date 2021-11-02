@@ -325,10 +325,20 @@ let MSVoiceSynthesisMaximumPitch:Double = 50
 let MSVoiceSynthesisMinimumPitch:Double = -50
 let MSVoiceSynthesisDefaultPitch:Double = 0
 func convertVoiceRate(_ value:Double) -> Double {
-    min(max(Double(Int(value * 100 - 100)),MSVoiceSynthesisMinimumRate),MSVoiceSynthesisMaximumRate)
+    let minRate = MSVoiceSynthesisMinimumRate + 100
+    let maxRate = MSVoiceSynthesisMaximumRate + 100
+    let defRate = MSVoiceSynthesisDefaultRate + 100
+    var val = defRate * value
+    val = min(max(val,minRate),maxRate) - 100
+    return Double(Int(val))
 }
 func convertVoicePitch(_ value:Double) -> Double {
-    min(max(Double(Int(value * 100 - 100)),MSVoiceSynthesisMinimumPitch),MSVoiceSynthesisMaximumPitch)
+    let minPitch = MSVoiceSynthesisMinimumPitch + 50
+    let maxPitch = MSVoiceSynthesisMaximumPitch + 50
+    let defPitch = MSVoiceSynthesisDefaultPitch + 50
+    var val = defPitch * value
+    val = min(max(val,minPitch),maxPitch) - 50
+    return Double(Int(val))
 }
 func convertToSSML(utterance: TTSUtterance, voice: MSSpeechVoice, pronunciations:[MSPronunciation]) -> String {
     return """

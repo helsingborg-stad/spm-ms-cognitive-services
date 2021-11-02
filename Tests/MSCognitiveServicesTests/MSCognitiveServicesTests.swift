@@ -16,12 +16,12 @@ final class MSCognitiveServicesTests: XCTestCase {
         XCTAssertTrue(convertVoiceRate(4) == MSVoiceSynthesisMaximumRate)
         XCTAssertFalse(convertVoiceRate(5) == 400)
         
-        XCTAssertTrue(convertVoicePitch(0.5) == -50)
-        XCTAssertTrue(convertVoicePitch(1.5) == 50)
-        XCTAssertTrue(convertVoicePitch(1.222) == 22)
+        XCTAssertTrue(convertVoicePitch(0.5) == -25)
+        XCTAssertTrue(convertVoicePitch(1.5) == 25)
+        XCTAssertTrue(convertVoicePitch(1.222) == 11)
         XCTAssertTrue(convertVoicePitch(0) == MSVoiceSynthesisMinimumPitch)
         XCTAssertTrue(convertVoicePitch(1) == MSVoiceSynthesisDefaultPitch)
-        XCTAssertTrue(convertVoicePitch(4) == MSVoiceSynthesisMaximumPitch)
+        XCTAssertTrue(convertVoicePitch(2) == MSVoiceSynthesisMaximumPitch)
         XCTAssertFalse(convertVoicePitch(3) == 300)
     }
 }
