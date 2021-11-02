@@ -69,7 +69,7 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
     /// Updates the voices if config changes. Will remove voices if new value is nil
     public var config:Config? {
         set {
-            var old = synthesizer.config
+            let old = synthesizer.config
             synthesizer.config = newValue
             if newValue == nil {
                 fetchVoicesStatus = .none
@@ -157,27 +157,23 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
         }
         return MSSpeechVoice.hasSupport(for: locale, in: voices)
     }
-    /// Fetches voices using the current config and assigns voices to instance
-    /// - Returns: completion publisher
-    private func updateVoicesPublisher() -> AnyPublisher<MSSpeechVoice.Directory,Error> {
+
+    private func updateVoices() {
         guard let config = config else {
-            return Fail(error: MSTTSError.missingConfig).eraseToAnyPublisher()
+            return
         }
-        let p = MSSpeechVoice.publisher(using: config)
-        p.receive(on: DispatchQueue.main).sink { [weak self] compl in
+        var p:AnyCancellable?
+        p = MSSpeechVoice.publisher(using: config).receive(on: DispatchQueue.main).sink { [weak self] compl in
             switch compl {
             case .failure(let error): self?.fetchVoicesStatus = .failed(error)
             case .finished: break;
             }
+            if let p = p {
+                self?.cancellables.remove(p)
+            }
         } receiveValue: { [weak self]  dir in
             self?.voices = dir
             self?.fetchVoicesStatus = .finished
-        }
-        return p
-    }
-    private func updateVoices() {
-        var p:AnyCancellable?
-        p = self.updateVoicesPublisher().replaceError(with: [:]).sink { [weak self] _ in
             if let p = p {
                 self?.cancellables.remove(p)
             }
