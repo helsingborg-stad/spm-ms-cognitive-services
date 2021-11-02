@@ -51,7 +51,7 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
     public var startedPublisher: TTSStatusPublisher { startedSubject.eraseToAnyPublisher() }
     public var speakingWordPublisher: TTSWordBoundaryPublisher { speakingWordSubject.eraseToAnyPublisher() }
     public var failurePublisher: TTSFailedPublisher { failureSubject.eraseToAnyPublisher() }
-    public var fetchVoicesStatus:MSTTSFetchVoiceStatus = .none
+    @Published public var fetchVoicesStatus:MSTTSFetchVoiceStatus = .none
     
     public let id: TTSServiceIdentifier = "MSTTS"
     @Published public private(set) var available:Bool = false
