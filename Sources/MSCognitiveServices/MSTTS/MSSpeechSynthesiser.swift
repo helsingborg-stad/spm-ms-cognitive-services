@@ -317,15 +317,25 @@ class MSSpeechSynthesizer {
         }
     }
 }
-func convertVoiceAdjustmentParameter(_ value:Double) -> Double {
-    return Double(Int(value * 100 - 100))
+let MSVoiceSynthesisMaximumRate:Double = 300
+let MSVoiceSynthesisMinimumRate:Double = -100
+let MSVoiceSynthesisDefaultRate:Double = 0
+
+let MSVoiceSynthesisMaximumPitch:Double = 50
+let MSVoiceSynthesisMinimumPitch:Double = -50
+let MSVoiceSynthesisDefaultPitch:Double = 0
+func convertVoiceRate(_ value:Double) -> Double {
+    min(max(Double(Int(value * 100 - 100)),MSVoiceSynthesisMinimumRate),MSVoiceSynthesisMaximumRate)
+}
+func convertVoicePitch(_ value:Double) -> Double {
+    min(max(Double(Int(value * 100 - 100)),MSVoiceSynthesisMinimumPitch),MSVoiceSynthesisMaximumPitch)
 }
 func convertToSSML(utterance: TTSUtterance, voice: MSSpeechVoice, pronunciations:[MSPronunciation]) -> String {
     return """
     <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xmlns:emo="http://www.w3.org/2009/10/emotionml" xml:lang="\(voice.locale.replacingOccurrences(of: "_", with: "-"))">
     <voice name="\(voice.shortName)">
         <mstts:silence type="Leading" value="0" />
-        <prosody rate="\(convertVoiceAdjustmentParameter(utterance.voice.rate ?? 1))%" pitch="\(convertVoiceAdjustmentParameter(utterance.voice.pitch ?? 1))%">
+        <prosody rate="\(convertVoiceRate(utterance.voice.rate ?? 1))%" pitch="\(convertVoicePitch(utterance.voice.pitch ?? 1))%">
             \(update(string: utterance.speechString, using: pronunciations))
         </prosody>
         <mstts:silence type="Tailing" value="0" />
