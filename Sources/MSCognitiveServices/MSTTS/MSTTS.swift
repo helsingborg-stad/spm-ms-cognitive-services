@@ -19,7 +19,11 @@ public enum MSTTSError : Error {
     case missingConfig
     case serviceUnavailable
 }
-
+public enum MSTTSFetchVoiceStatus {
+    case none
+    case finished
+    case failed(Error)
+}
 public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
     public struct Config : Equatable {
         public let key: String
@@ -34,7 +38,6 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
     private let startedSubject: TTSStatusSubject = .init()
     private let speakingWordSubject: TTSWordBoundarySubject = .init()
     private let failureSubject: TTSFailedSubject = .init()
-    private let voicesSubject = PassthroughSubject<MSSpeechVoice.Directory,Error>()
     private var cancellables = Set<AnyCancellable>()
     private var synthesizer: MSSpeechSynthesizer
     private var audioAvailable:Bool = true {
@@ -48,6 +51,7 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
     public var startedPublisher: TTSStatusPublisher { startedSubject.eraseToAnyPublisher() }
     public var speakingWordPublisher: TTSWordBoundaryPublisher { speakingWordSubject.eraseToAnyPublisher() }
     public var failurePublisher: TTSFailedPublisher { failureSubject.eraseToAnyPublisher() }
+    public var fetchVoicesStatus:MSTTSFetchVoiceStatus = .none
     
     public let id: TTSServiceIdentifier = "MSTTS"
     @Published public private(set) var available:Bool = false
@@ -68,6 +72,7 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
             var old = synthesizer.config
             synthesizer.config = newValue
             if newValue == nil {
+                fetchVoicesStatus = .none
                 voices = .init()
             } else if newValue != old {
                 updateVoices()
@@ -154,14 +159,21 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
     }
     /// Fetches voices using the current config and assigns voices to instance
     /// - Returns: completion publisher
-    public func updateVoicesPublisher() -> AnyPublisher<MSSpeechVoice.Directory,Error> {
+    private func updateVoicesPublisher() -> AnyPublisher<MSSpeechVoice.Directory,Error> {
         guard let config = config else {
             return Fail(error: MSTTSError.missingConfig).eraseToAnyPublisher()
         }
-        return MSSpeechVoice.publisher(using: config).receive(on: DispatchQueue.main).map({ [weak self] res -> MSSpeechVoice.Directory in
-            self?.voices = res
-            return res
-        }).eraseToAnyPublisher()
+        let p = MSSpeechVoice.publisher(using: config)
+        p.receive(on: DispatchQueue.main).sink { [weak self] compl in
+            switch compl {
+            case .failure(let error): self?.fetchVoicesStatus = .failed(error)
+            case .finished: break;
+            }
+        } receiveValue: { [weak self]  dir in
+            self?.voices = dir
+            self?.fetchVoicesStatus = .finished
+        }
+        return p
     }
     private func updateVoices() {
         var p:AnyCancellable?
