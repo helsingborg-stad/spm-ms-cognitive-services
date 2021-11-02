@@ -21,8 +21,6 @@ public enum MSTTSError : Error {
 }
 
 public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
-
-    
     public struct Config : Equatable {
         public let key: String
         public let region: String

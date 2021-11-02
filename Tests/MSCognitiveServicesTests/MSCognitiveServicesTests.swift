@@ -7,10 +7,10 @@ let switchboard = AudioSwitchboard()
 var cancellables = Set<AnyCancellable>()
 
 final class MSCognitiveServicesTests: XCTestCase {
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct
-        // results.
- 
+    func testConvertPitch() throws {
+        XCTAssert(convertPitch(0.5) == -50)
+        XCTAssert(convertPitch(1.5) == 50)
+        XCTAssert(convertPitch(1.222) == 22)
+        XCTAssert(convertPitch(1) == 0)
     }
 }
