@@ -8,9 +8,9 @@ var cancellables = Set<AnyCancellable>()
 
 final class MSCognitiveServicesTests: XCTestCase {
     func testConvertPitch() throws {
-        XCTAssert(convertPitch(0.5) == -50)
-        XCTAssert(convertPitch(1.5) == 50)
-        XCTAssert(convertPitch(1.222) == 22)
-        XCTAssert(convertPitch(1) == 0)
+        XCTAssert(convertVoiceAdjustmentParameter(0.5) == -50)
+        XCTAssert(convertVoiceAdjustmentParameter(1.5) == 50)
+        XCTAssert(convertVoiceAdjustmentParameter(1.222) == 22)
+        XCTAssert(convertVoiceAdjustmentParameter(1) == 0)
     }
 }
