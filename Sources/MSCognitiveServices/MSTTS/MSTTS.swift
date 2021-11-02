@@ -65,10 +65,11 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
     /// Updates the voices if config changes. Will remove voices if new value is nil
     public var config:Config? {
         set {
+            var old = synthesizer.config
             synthesizer.config = newValue
             if newValue == nil {
                 voices = .init()
-            } else if newValue != config {
+            } else if newValue != old {
                 updateVoices()
             }
             updateAvailable()
