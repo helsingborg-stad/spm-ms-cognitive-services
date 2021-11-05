@@ -7,7 +7,6 @@ let package = Package(
     name: "MSCognitiveServices",
     platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13)],
     products: [
-        // Products define the executables and libraries a package produces, and make them visible to other packages.
         .library(
             name: "MSCognitiveServices",
             targets: ["MSCognitiveServices"]),
@@ -24,8 +23,6 @@ let package = Package(
         .package(name: "AudioSwitchboard", url: "https://github.com/helsingborg-stad/spm-audio-switchboard.git", from: "0.1.2")
     ],
     targets: [
-        // Targets are the basic building blocks of a package. A target can define a module or a test suite.
-        // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
             name: "MSCognitiveServices",
             dependencies: ["TTS", "FFTPublisher", "MicrosoftCognitiveServicesSpeech", "AudioSwitchboard","Shout", "TextTranslator","STT"]),
@@ -34,8 +31,8 @@ let package = Package(
             dependencies: ["MSCognitiveServices"]),
         .binaryTarget(
             name: "MicrosoftCognitiveServicesSpeech",
-            url: "https://github.com/tomasgreen/MSSpeechServiceXCFramework/blob/versoon-1.18.0/MicrosoftCognitiveServicesSpeech.xcframework.zip?raw=true",
-            checksum: "5e4aca1600fdd5dc79e9facb1c7a40d0262606ac20b51e3eec069b2f78dd8d04"
+            url: "https://csspeechstorage.blob.core.windows.net/drop/1.19.0/MicrosoftCognitiveServicesSpeech-XCFramework-1.19.0.zip",
+            checksum: "077cf2c2ff5d70c62d4ada90b80c0fc3b8bc59818b4eeaae5b1b28c48e4ddab4"
         )
     ]
 )
