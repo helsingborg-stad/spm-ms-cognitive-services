@@ -8,26 +8,25 @@ let maxChars = 9999
 let maxStrings = 99
 let charsPerMinute = 30000
 var totalChars = 0
-private func reduce(_ texts: inout [String], _ res: [String] = [], _ count: Int = 0, multiplier:Int = 1) -> ([String], Int) {
+
+private func reduce(_ texts: inout [String], _ res: [String] = [], _ count: Int = 0) throws -> ([String], Int) {
     guard texts.isEmpty == false, let string = texts.first else {
         return (res, count)
     }
-    let mc = maxChars / multiplier
-    let numChars = string.count * multiplier
-    if numChars > mc {
-        texts.removeFirst()
-        return reduce(&texts, res, count, multiplier:multiplier)
+    let numChars = string.count
+    if res.count == 0, numChars > maxChars {
+        throw MSTranslatorError.maximumNumberOfCharsExceeded
     }
     if res.count + 1 >= maxStrings {
         return (res, count)
     }
-    if numChars + count > mc {
+    if numChars + count > maxChars {
         return (res, count)
     }
     var r = [string]
     r.append(contentsOf: res)
     texts.removeFirst()
-    return reduce(&texts, r, count + numChars, multiplier:multiplier)
+    return try reduce(&texts, r, count + numChars)
 }
 struct MSTranslationResult: Codable {
     var text: String
@@ -42,6 +41,7 @@ public enum MSTranslatorError: Error {
     case unableToTranslate
     case resultCountMissmatch
     case resultMissing
+    case maximumNumberOfCharsExceeded
 }
 public struct MSTranslatorBackendError: Error {
     var code:Int
@@ -139,6 +139,20 @@ private func getTranslations(token: String, texts: [String], from: LanguageKey, 
         }
         .eraseToAnyPublisher()
 }
+private var cancellables = Set<AnyCancellable>()
+
+func add(_ cancellable:AnyCancellable?) {
+    guard let cancellable = cancellable else {
+        return
+    }
+    cancellables.insert(cancellable)
+}
+func remove(_ cancellable:AnyCancellable?) {
+    guard let cancellable = cancellable else {
+        return
+    }
+    cancellables.remove(cancellable)
+}
 public final class MSTextTranslator: TextTranslationService, ObservableObject {
     public struct Config: Equatable {
         var key: String
@@ -148,8 +162,6 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             self.region = region
         }
     }
-
-    private var fetches = Set<AnyCancellable>()
     private var authenticator: MSCognitiveAuthenticator?
     public var logger = Shout("MSTranslator")
     public var config:Config? {
@@ -169,91 +181,129 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             self.authenticator = MSCognitiveAuthenticator(key: config.key, region: config.region)
         }
     }
-
-    private func translate(texts: [String], from: LanguageKey, to: [LanguageKey]) -> AnyPublisher<[MSTranslationResult],Error> {
+    private func translate(texts: [String], from: LanguageKey, to: LanguageKey) -> AnyPublisher<[MSTranslationResult],Error> {
         let completionSubject = PassthroughSubject<[MSTranslationResult],Error>()
         var untranslated = texts
         var translated = [MSTranslationResult]()
-        func fetch(texts: [String], languages: [LanguageKey], numchars: Int) {
-            guard let authenticator = authenticator else {
-                completionSubject.send(completion: .failure(MSTranslatorError.missingAuthenticator))
-                return
-            }
-            var languages = languages
-            var langs = [LanguageKey]()
-            for lang in languages {
-                if numchars * (1 + langs.count) >= (maxChars/(1 + langs.count)) {
-                    break
-                }
-                langs.append(lang)
-            }
-            // I'm not sure if this ever occurs. if the array of languages are empty, why would it be doing here in the first place?
-            guard !langs.isEmpty else {
-                fetch()
-                return
-            }
-            // any language not translated is going to be on the next iteration
-            languages.removeAll { langs.contains($0) }
-            
-            var c:AnyCancellable?
-            c = authenticator.getToken().flatMap { token in
-                getTranslations(token: token, texts: texts, from: from, to: to)
-            }
-            .sink { [weak self] completion in
-                switch completion {
-                case .failure(let error): completionSubject.send(completion: .failure(error))
-                case .finished: break;
-                }
-                if let c = c {
-                    self?.fetches.remove(c)
-                }
-            } receiveValue: { [weak self] results in
-                translated.append(contentsOf: results)
-                fetch(texts: texts, languages: languages, numchars: numchars)
-                if let c = c {
-                    self?.fetches.remove(c)
-                }
-            }
-            if let c = c {
-                fetches.insert(c)
-            }
-        }
         func fetch() {
-            if untranslated.isEmpty {
-                completionSubject.send(translated)
+            do {
+                if untranslated.isEmpty {
+                    completionSubject.send(translated)
+                    return
+                }
+                let (res, _) = try reduce(&untranslated)
+                if res.isEmpty {
+                    completionSubject.send(translated)
+                    return
+                }
+                guard let authenticator = authenticator else {
+                    completionSubject.send(completion: .failure(MSTranslatorError.missingAuthenticator))
+                    return
+                }
+                var c:AnyCancellable?
+                c = authenticator.getToken().flatMap { token in
+                    getTranslations(token: token, texts: texts, from: from, to: [to])
+                }
+                .sink { completion in
+                    switch completion {
+                    case .failure(let error): completionSubject.send(completion: .failure(error))
+                    case .finished: break;
+                    }
+                    remove(c)
+                } receiveValue: { results in
+                    translated.append(contentsOf: results)
+                    fetch()
+                    remove(c)
+                }
+                add(c)
+            } catch {
+                completionSubject.send(completion: .failure(error))
                 return
             }
-            let (res, numchars) = reduce(&untranslated, multiplier:to.count)
-            var c = 0
-            res.forEach { s in
-                c += s.count
-            }
-            if res.isEmpty {
-                completionSubject.send(translated)
-                return
-            }
-            fetch(texts: res, languages: to, numchars: numchars)
         }
         fetch()
         return completionSubject.eraseToAnyPublisher()
     }
-    final public func translate(_ texts: [TranslationKey : String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) -> FinishedPublisher {
+//    private func translate(texts: [String], from: LanguageKey, to: [LanguageKey]) -> AnyPublisher<[MSTranslationResult],Error> {
+//        let completionSubject = PassthroughSubject<[MSTranslationResult],Error>()
+//        var untranslated = texts
+//        var translated = [MSTranslationResult]()
+//        func fetch(texts: [String], languages: [LanguageKey], numchars: Int) {
+//            guard let authenticator = authenticator else {
+//                completionSubject.send(completion: .failure(MSTranslatorError.missingAuthenticator))
+//                return
+//            }
+//            var languages = languages
+//            var langs = [LanguageKey]()
+//            for lang in languages {
+//                if numchars * (1 + langs.count) >= (maxChars/(1 + langs.count)) {
+//                    break
+//                }
+//                langs.append(lang)
+//            }
+//            /// if langs is empty it means that the translations for all languages are completed.
+//            guard !langs.isEmpty else {
+//                fetch()
+//                return
+//            }
+//            // any language not translated is going to be on the next iteration
+//            languages.removeAll { langs.contains($0) }
+//
+//            var c:AnyCancellable?
+//            c = authenticator.getToken().flatMap { token in
+//                getTranslations(token: token, texts: texts, from: from, to: langs)
+//            }
+//            .sink { [weak self] completion in
+//                switch completion {
+//                case .failure(let error): completionSubject.send(completion: .failure(error))
+//                case .finished: break;
+//                }
+//                if let c = c {
+//                    self?.fetches.remove(c)
+//                }
+//            } receiveValue: { [weak self] results in
+//                translated.append(contentsOf: results)
+//                fetch(texts: texts, languages: languages, numchars: numchars)
+//                if let c = c {
+//                    self?.fetches.remove(c)
+//                }
+//            }
+//            if let c = c {
+//                fetches.insert(c)
+//            }
+//        }
+//        func fetch() {
+//            do {
+//                if untranslated.isEmpty {
+//                    completionSubject.send(translated)
+//                    return
+//                }
+//                let (res, numchars) = try reduce(&untranslated)
+//                var c = 0
+//                res.forEach { s in
+//                    c += s.count
+//                }
+//                if res.isEmpty {
+//                    completionSubject.send(translated)
+//                    return
+//                }
+//                fetch(texts: res, languages: to, numchars: numchars)
+//            } catch {
+//                completionSubject.send(completion: .failure(error))
+//                return
+//            }
+//        }
+//        fetch()
+//        return completionSubject.eraseToAnyPublisher()
+//    }
+    private func translate(_ texts: [TranslationKey : String], from: LanguageKey, to: LanguageKey, storeIn table: TextTranslationTable) -> FinishedPublisher {
         var table = table
-        var to = to
-        to.removeAll { $0 == from }
-        if to.isEmpty {
-            logger.info("No strings required translation (0 languages to translate into)")
-            return CurrentValueSubject(table).receive(on: DispatchQueue.main).eraseToAnyPublisher()
-        }
         var untranslated = [String]()
         var keys = [String:String]()
         for (key,value) in texts {
-            for lang in to {
-                if !table.translationExists(forKey: key, in: lang) {
-                    untranslated.append(convertVariables(string: value, find: "%@", replaceWith: "<span translate='no'>string</span>"))
-                    keys[value] = key
-                    break
-                }
+            if !table.translationExists(forKey: key, in: to) {
+                untranslated.append(convertVariables(string: value, find: "%@", replaceWith: "<span translate='no'>string</span>"))
+                keys[value] = key
             }
         }
         if untranslated.isEmpty {
@@ -266,10 +316,44 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
                 guard let key = keys[res.text] else {
                     continue
                 }
-                table.updateTranslations(forKey:key, from: from, to: to, using: res)
+                table.updateTranslations(forKey:key, from: from, to: [to], using: res)
             }
             return table
         }.receive(on: DispatchQueue.main).eraseToAnyPublisher()
+    }
+    final public func translate(_ texts: [TranslationKey : String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) -> FinishedPublisher {
+        let completionSubject = FinishedSubject()
+        var to = to
+        to.removeAll { $0 == from }
+        if to.isEmpty {
+            logger.info("No strings required translation (0 languages to translate into)")
+            return CurrentValueSubject(table).receive(on: DispatchQueue.main).eraseToAnyPublisher()
+        }
+        func translate(in language:LanguageKey, storeIn table:TextTranslationTable) {
+            var c:AnyCancellable?
+            c = self.translate(texts, from: from, to: language, storeIn: table).sink { compl in
+                switch compl {
+                case .failure(let error): completionSubject.send(completion: .failure(error))
+                case .finished: break;
+                }
+                remove(c)
+            } receiveValue: { table in
+                guard let lang = to.first else {
+                    completionSubject.send(table)
+                    return
+                }
+                to.removeFirst()
+                translate(in: lang, storeIn: table)
+                remove(c)
+            }
+            add(c)
+        }
+        guard let lang = to.first else {
+            return CurrentValueSubject(table).receive(on: DispatchQueue.main).eraseToAnyPublisher()
+        }
+
+        translate(in: lang, storeIn: table)
+        return completionSubject.receive(on: DispatchQueue.main).eraseToAnyPublisher()
     }
     final public func translate(_ texts: [String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) -> FinishedPublisher {
         var dict = [TranslationKey : String]()
@@ -279,7 +363,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         return translate(dict, from: from, to: to, storeIn: table)
     }
     final public func translate(_ text: String, from: LanguageKey, to: LanguageKey) -> TranslatedPublisher {
-        return translate(texts: [text], from: from, to: [to]).tryMap { results -> TranslatedString in
+        return translate(texts: [text], from: from, to: to).tryMap { results -> TranslatedString in
             for res in results  {
                 for (langKey, value) in res.translations {
                     guard let t = to.split(separator: "-").first else {
