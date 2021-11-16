@@ -205,9 +205,12 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
                 c = authenticator.getToken().flatMap { token in
                     getTranslations(token: token, texts: texts, from: from, to: [to])
                 }
-                .sink { completion in
+                .sink { [weak self] completion in
                     switch completion {
-                    case .failure(let error): completionSubject.send(completion: .failure(error))
+                    case .failure(let error):
+                        self?.logger.error(error)
+                        completionSubject.send(completion: .failure(error))
+                        self?.logger.error("Error while translating from \(from) to \(to)", texts)
                     case .finished: break;
                     }
                     remove(c)
@@ -312,11 +315,12 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             return CurrentValueSubject(table).receive(on: DispatchQueue.main).eraseToAnyPublisher()
         }
         logger.info("\(untranslated.count) strings requires translation")
-        return self.translate(texts: untranslated, from: from, to: to).map { results -> TextTranslationTable in
+        return self.translate(texts: untranslated, from: from, to: to).map { [weak self] results -> TextTranslationTable in
             for res in results {
                 guard let key = keys[res.text] else {
                     continue
                 }
+                self?.logger.info("adding translation for \(key) with result", res)
                 table.updateTranslations(forKey:key, from: from, to: [to], using: res)
             }
             return table
@@ -324,23 +328,28 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
     }
     final public func translate(_ texts: [TranslationKey : String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) -> FinishedPublisher {
         let completionSubject = FinishedSubject()
+        
         var to = to
         to.removeAll { $0 == from }
+        let languages = to
         if to.isEmpty {
             logger.info("No strings required translation (0 languages to translate into)")
             return CurrentValueSubject(table).receive(on: DispatchQueue.main).eraseToAnyPublisher()
         }
         func translate(in language:LanguageKey, storeIn table:TextTranslationTable) {
             var c:AnyCancellable?
-            c = self.translate(texts, from: from, to: language, storeIn: table).sink { compl in
+            c = self.translate(texts, from: from, to: language, storeIn: table).sink { [weak self] compl in
                 switch compl {
-                case .failure(let error): completionSubject.send(completion: .failure(error))
+                case .failure(let error):
+                    completionSubject.send(completion: .failure(error))
+                    self?.logger.error(error)
                 case .finished: break;
                 }
                 remove(c)
-            } receiveValue: { table in
+            } receiveValue: { [weak self] table in
                 guard let lang = to.first else {
                     completionSubject.send(table)
+                    self?.logger.info("Completed translations from \(from) to \(languages)")
                     return
                 }
                 to.removeFirst()
