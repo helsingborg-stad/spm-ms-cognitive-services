@@ -13,7 +13,8 @@ private func reduce(_ texts: inout [String], _ res: [String] = [], _ count: Int 
     guard texts.isEmpty == false, let string = texts.first else {
         return (res, count)
     }
-    let numChars = string.count
+    // utf16 count is neded for some emojis. 
+    let numChars = string.utf16.count
     if res.count == 0, numChars > maxChars {
         throw MSTranslatorError.maximumNumberOfCharsExceeded
     }
