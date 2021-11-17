@@ -203,7 +203,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
                 }
                 var c:AnyCancellable?
                 c = authenticator.getToken().flatMap { token in
-                    getTranslations(token: token, texts: texts, from: from, to: [to])
+                    getTranslations(token: token, texts: res, from: from, to: [to])
                 }
                 .sink { [weak self] completion in
                     switch completion {
