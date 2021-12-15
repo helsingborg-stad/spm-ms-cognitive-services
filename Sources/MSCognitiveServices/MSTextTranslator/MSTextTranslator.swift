@@ -332,7 +332,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
     ///   - to: the languages to translate the text into
     ///   - table: the table to store the transaltions in
     /// - Returns: completion publisher
-    final public func translate(_ texts: [TranslationKey : String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) -> FinishedPublisher {
+    final public func translate(_ texts: [TranslationKey : String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable = .init()) -> FinishedPublisher {
         let completionSubject = FinishedSubject()
         
         var to = to
@@ -378,7 +378,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
     ///   - to: the languages to translate the text into
     ///   - table: the table to store the transaltions in
     /// - Returns: completion publisher
-    final public func translate(_ texts: [String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) -> FinishedPublisher {
+    final public func translate(_ texts: [String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable = .init()) -> FinishedPublisher {
         var dict = [TranslationKey : String]()
         texts.forEach { s in
             dict[s] = s
@@ -415,7 +415,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
     ///   - to: the languages to translate the text into
     ///   - table: the table to store the transaltions in
     /// - Returns: table containing the translated strings
-    final public func translateAsync(_ texts: [TranslationKey : String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) async throws -> TextTranslationTable {
+    final public func translateAsync(_ texts: [TranslationKey : String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable = .init()) async throws -> TextTranslationTable {
         try await makeAsync(translate(texts, from: from, to: to, storeIn: table))
     }
     /// Translates an array of strings from one language into several other languages
@@ -426,7 +426,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
     ///   - to: the languages to translate the text into
     ///   - table: the table to store the transaltions in
     /// - Returns: table containing the translated strings
-    final public func translateAsync(_ texts: [String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) async throws-> TextTranslationTable {
+    final public func translateAsync(_ texts: [String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable = .init()) async throws-> TextTranslationTable {
         try await makeAsync(translate(texts, from: from, to: to, storeIn: table))
     }
     /// Translate a single string from one language to another
