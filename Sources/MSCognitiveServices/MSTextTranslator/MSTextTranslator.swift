@@ -3,12 +3,30 @@ import Combine
 import Shout
 import TextTranslator
 
-// https://docs.microsoft.com/en-us/azure/cognitive-services/translator/request-limits
+/// The maximum allowed number of utf16 characters to incldue in a request
 let maxChars = 9999
+/// The maximum allowed number of strings in a single request
 let maxStrings = 99
 
 /// Used to store cancellables
 private var cancellables = Set<AnyCancellable?>()
+
+/// Reduces an array of strings based on a number of constraints.
+///
+/// The constraints includes:
+/// - maximum number of chars: 9999
+/// - maximum number of strings in result: 99
+///
+/// You can read more about the constraints at [https://docs.microsoft.com/en-us/azure/cognitive-services/translator/request-limits](https://docs.microsoft.com/en-us/azure/cognitive-services/translator/request-limits)
+///
+/// If the maximum number of chars are exeeded in a single string the function will throw and error.
+///
+/// - Parameters:
+///   - texts: the texts to reduce
+///   - res: the result
+///   - count: number of strings included in the result
+/// - Throws: `MSTranslatorError.maximumNumberOfCharsExceeded`
+/// - Returns: (Result,Count)
 private func reduce(_ texts: inout [String], _ res: [String] = [], _ count: Int = 0) throws -> ([String], Int) {
     guard texts.isEmpty == false, let string = texts.first else {
         return (res, count)
@@ -29,35 +47,65 @@ private func reduce(_ texts: inout [String], _ res: [String] = [], _ count: Int 
     texts.removeFirst()
     return try reduce(&texts, r, count + numChars)
 }
+
+/// The final parsed result from the translator api
 struct MSTranslationResult: Codable {
+    /// Original text
     var text: String
+    /// Translation dictionary holding translatos of `text`
     var translations: [LanguageKey: TranslatedValue]
 }
+/// Errors occuring here in the packages
 public enum MSTranslatorError: Error {
+    /// There is no assigned authenticator
     case missingAuthenticator
+    /// The resulting value from the backend is not matching the expected response
     case resultCountMissmatch
+    /// The result of the api call is empty
     case resultMissing
+    /// The number of characters allowed to be translated in one string has been exceeded (see `maxChars`)
     case maximumNumberOfCharsExceeded
 }
+/// Describes an error occuring on the translator api backend.
 public struct MSTranslatorBackendError: Error {
+    /// Error code
     var code:Int
+    /// Message describing what happens
     var message:String
+    /// Initializes a new error from a dictionary
+    /// - Parameter dict: dictionary used to create object
     init(dict:[String:Any]) {
         code = dict["code"] as? Int ?? -1
         message = dict["message"] as? String ?? "unkown error"
     }
 }
+/// Holds the raw value for the translator api request
 struct MSRequest: Codable {
+    /// The text to be translated
     let text: String
 }
+
+/// Holds the raw values from the translator api result. This structure is later converted into `MSTranslationResult`
 struct MSResult: Codable {
+    /// Describes a translated value
     struct Translation: Codable {
+        /// The translated tex
         let text: String
+        /// The language translated into
         let to: String
     }
+    /// All translations
     var translations: [Translation]
 }
+
+/// MSTextTranslator extension to TextTranslationTable
 private extension TextTranslationTable {
+    /// Updates the table using backend result
+    /// - Parameters:
+    ///   - key: the key to update
+    ///   - from: the language translated from
+    ///   - to: the languages translated into
+    ///   - result: result object from microsoft backend.
     mutating func updateTranslations(forKey key:String, from: LanguageKey, to: [LanguageKey], using result:MSTranslationResult) {
         self.set(value: result.text, for: key, in: from)
         for (langKey, value) in result.translations {
@@ -74,11 +122,27 @@ private extension TextTranslationTable {
         }
     }
 }
+
+/// Used to convert all string variables ie `%@` in to a mircorosft ingorable format and back
+/// The function can be used to replace any string recursively using NSRegularExpression.
+/// - Parameters:
+///   - string: the string used to find and replace on
+///   - find: the string to replace
+///   - replaceWith: replace all occurances of `find`
+/// - Returns: the processed string
 func convertVariables(string:String,find:String,replaceWith:String) -> String {
     let regex = try! NSRegularExpression(pattern: find, options: NSRegularExpression.Options.caseInsensitive)
     let range = NSMakeRange(0, string.count)
     return regex.stringByReplacingMatches(in: string, options: [], range: range, withTemplate: replaceWith)
 }
+
+/// Used to fetch translations from microsofts translate api
+/// - Parameters:
+///   - token: the access token to use (obtained through `MSCognitiveAuthenticator`)
+///   - texts: the texts to translate (should be processed using `convertVariables`)
+///   - from: the language of `texts`
+///   - to: languages to translate `texts` into
+/// - Returns: completion publisher
 private func getTranslations(token: String, texts: [String], from: LanguageKey, to: [LanguageKey]) -> AnyPublisher<[MSTranslationResult],Error> {
     guard let endpoint = URL(string: "https://api-eur.cognitive.microsofttranslator.com/translate") else {
         return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
@@ -131,17 +195,29 @@ private func getTranslations(token: String, texts: [String], from: LanguageKey, 
         .eraseToAnyPublisher()
 }
 
+/// The MSTextTranslator is a `TextTranslationService` used to translate text using the Microsoft Translator API.
+/// More information about the service can be found at [https://docs.microsoft.com/en-us/azure/cognitive-services/translator](https://docs.microsoft.com/en-us/azure/cognitive-services/translator)
 public final class MSTextTranslator: TextTranslationService, ObservableObject {
+    /// Configuration used to communicate with transaltor api
     public struct Config: Equatable {
+        /// Cognitive service access key aquired through the azure portal
         var key: String
+        /// The service region for example `northeurope`
         var region: String
+        /// Initializes a new config
+        /// - Parameters:
+        ///   - key: Cognitive service access key aquired through the azure portal
+        ///   - region: The service region for example `northeurope`
         public init(key: String, region: String) {
             self.key = key
             self.region = region
         }
     }
+    /// The authenticator used to aquire an access token
     private var authenticator: MSCognitiveAuthenticator?
+    /// Logger used to log events
     public var logger = Shout("MSTranslator")
+    /// The instance configuration
     public var config:Config? {
         didSet {
             if config == oldValue {
@@ -154,11 +230,19 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             self.authenticator = MSCognitiveAuthenticator(key: config.key, region: config.region)
         }
     }
+    /// Initializes a new `MSTextTranslator` object
+    /// - Parameter config: configuration to use
     public init(config: Config? = nil) {
         if let config = config {
             self.authenticator = MSCognitiveAuthenticator(key: config.key, region: config.region)
         }
     }
+    /// Translates an array of strings from one language to another using the microsoft transaltor api.
+    /// - Parameters:
+    ///   - texts: array of strings to translate
+    ///   - from: the lanugage of the original text
+    ///   - to: the language to translate into
+    /// - Returns: completion publisher
     private func translate(texts: [String], from: LanguageKey, to: LanguageKey) -> AnyPublisher<[MSTranslationResult],Error> {
         let completionSubject = PassthroughSubject<[MSTranslationResult],Error>()
         var untranslated = texts
@@ -205,6 +289,14 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         fetch()
         return completionSubject.eraseToAnyPublisher()
     }
+    /// Translates a dictionary of strings from one language to another
+    /// All translated strings are added/stored in to a supplied `TextTranslationTable`
+    /// - Parameters:
+    ///   - texts: a [key:stringtobetranslated] dictionary
+    ///   - from: the lanugage of the original text
+    ///   - to: the language to translate into
+    ///   - table: the table to store the transaltions in
+    /// - Returns: completion publisher
     private func translate(_ texts: [TranslationKey : String], from: LanguageKey, to: LanguageKey, storeIn table: TextTranslationTable) -> FinishedPublisher {
         var table = table
         var untranslated = [String]()
@@ -231,6 +323,14 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             return table
         }.receive(on: DispatchQueue.main).eraseToAnyPublisher()
     }
+    /// Translates a dictionary of strings from one language into several other languages
+    /// All translated strings are added/stored in to a supplied `TextTranslationTable`
+    /// - Parameters:
+    ///   - texts: a [key:stringtobetranslated] dictionary
+    ///   - from: the lanugage of the original text
+    ///   - to: the languages to translate the text into
+    ///   - table: the table to store the transaltions in
+    /// - Returns: completion publisher
     final public func translate(_ texts: [TranslationKey : String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) -> FinishedPublisher {
         let completionSubject = FinishedSubject()
         
@@ -266,10 +366,17 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         guard let lang = to.first else {
             return CurrentValueSubject(table).receive(on: DispatchQueue.main).eraseToAnyPublisher()
         }
-
         translate(in: lang, storeIn: table)
         return completionSubject.receive(on: DispatchQueue.main).eraseToAnyPublisher()
     }
+    /// Translates an array of strings from one language into several other languages
+    /// All translated strings are added/stored in to a supplied `TextTranslationTable`
+    /// - Parameters:
+    ///   - texts: the texts to translate
+    ///   - from: the lanugage of the original text
+    ///   - to: the languages to translate the text into
+    ///   - table: the table to store the transaltions in
+    /// - Returns: completion publisher
     final public func translate(_ texts: [String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) -> FinishedPublisher {
         var dict = [TranslationKey : String]()
         texts.forEach { s in
@@ -277,6 +384,12 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         }
         return translate(dict, from: from, to: to, storeIn: table)
     }
+    /// Translat a single string from one lanugage to another
+    /// - Parameters:
+    ///   - text: the texte to be translated
+    ///   - from: the lanugage of the original text
+    ///   - to: the language to translate into
+    /// - Returns: completion publisher
     final public func translate(_ text: String, from: LanguageKey, to: LanguageKey) -> TranslatedPublisher {
         return translate(texts: [text], from: from, to: to).tryMap { results -> TranslatedString in
             for res in results  {
