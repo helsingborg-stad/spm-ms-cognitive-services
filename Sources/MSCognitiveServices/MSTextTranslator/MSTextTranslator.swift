@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import Shout
 import TextTranslator
+import AsyncPublisher
 
 /// The maximum allowed number of utf16 characters to incldue in a request
 let maxChars = 9999
@@ -384,7 +385,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         }
         return translate(dict, from: from, to: to, storeIn: table)
     }
-    /// Translat a single string from one lanugage to another
+    /// Translate a single string from one lanugage to another
     /// - Parameters:
     ///   - text: the texte to be translated
     ///   - from: the lanugage of the original text
@@ -405,5 +406,36 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             }
             throw MSTranslatorError.resultMissing
         }.receive(on: DispatchQueue.main).eraseToAnyPublisher()
+    }
+    /// Translates a dictionary of strings from one language into several other languages
+    /// All translated strings are added/stored in to a supplied `TextTranslationTable`
+    /// - Parameters:
+    ///   - texts: a [key:stringtobetranslated] dictionary
+    ///   - from: the lanugage of the original text
+    ///   - to: the languages to translate the text into
+    ///   - table: the table to store the transaltions in
+    /// - Returns: table containing the translated strings
+    final public func translateAsync(_ texts: [TranslationKey : String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) async throws -> TextTranslationTable {
+        try await makeAsync(translate(texts, from: from, to: to, storeIn: table))
+    }
+    /// Translates an array of strings from one language into several other languages
+    /// All translated strings are added/stored in to a supplied `TextTranslationTable`
+    /// - Parameters:
+    ///   - texts: the texts to translate
+    ///   - from: the lanugage of the original text
+    ///   - to: the languages to translate the text into
+    ///   - table: the table to store the transaltions in
+    /// - Returns: table containing the translated strings
+    final public func translateAsync(_ texts: [String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable) async throws-> TextTranslationTable {
+        try await makeAsync(translate(texts, from: from, to: to, storeIn: table))
+    }
+    /// Translate a single string from one lanugage to another
+    /// - Parameters:
+    ///   - text: the texte to be translated
+    ///   - from: the lanugage of the original text
+    ///   - to: the language to translate into
+    /// - Returns: transalted string
+    final public func translateAsync(_ text: String, from: LanguageKey, to: LanguageKey) async throws-> TranslatedString {
+        try await makeAsync(translate(text, from: from, to: to))
     }
 }
