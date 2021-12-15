@@ -6,8 +6,6 @@ import TextTranslator
 // https://docs.microsoft.com/en-us/azure/cognitive-services/translator/request-limits
 let maxChars = 9999
 let maxStrings = 99
-let charsPerMinute = 30000
-var totalChars = 0
 
 /// Used to store cancellables
 private var cancellables = Set<AnyCancellable?>()
@@ -58,11 +56,6 @@ struct MSResult: Codable {
         let to: String
     }
     var translations: [Translation]
-    var strings: [String] {
-        return translations.compactMap { (translation) -> String in
-            return translation.text
-        }
-    }
 }
 private extension TextTranslationTable {
     mutating func updateTranslations(forKey key:String, from: LanguageKey, to: [LanguageKey], using result:MSTranslationResult) {
@@ -212,78 +205,6 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         fetch()
         return completionSubject.eraseToAnyPublisher()
     }
-//    private func translate(texts: [String], from: LanguageKey, to: [LanguageKey]) -> AnyPublisher<[MSTranslationResult],Error> {
-//        let completionSubject = PassthroughSubject<[MSTranslationResult],Error>()
-//        var untranslated = texts
-//        var translated = [MSTranslationResult]()
-//        func fetch(texts: [String], languages: [LanguageKey], numchars: Int) {
-//            guard let authenticator = authenticator else {
-//                completionSubject.send(completion: .failure(MSTranslatorError.missingAuthenticator))
-//                return
-//            }
-//            var languages = languages
-//            var langs = [LanguageKey]()
-//            for lang in languages {
-//                if numchars * (1 + langs.count) >= (maxChars/(1 + langs.count)) {
-//                    break
-//                }
-//                langs.append(lang)
-//            }
-//            /// if langs is empty it means that the translations for all languages are completed.
-//            guard !langs.isEmpty else {
-//                fetch()
-//                return
-//            }
-//            // any language not translated is going to be on the next iteration
-//            languages.removeAll { langs.contains($0) }
-//
-//            var c:AnyCancellable?
-//            c = authenticator.getToken().flatMap { token in
-//                getTranslations(token: token, texts: texts, from: from, to: langs)
-//            }
-//            .sink { [weak self] completion in
-//                switch completion {
-//                case .failure(let error): completionSubject.send(completion: .failure(error))
-//                case .finished: break;
-//                }
-//                if let c = c {
-//                    self?.fetches.remove(c)
-//                }
-//            } receiveValue: { [weak self] results in
-//                translated.append(contentsOf: results)
-//                fetch(texts: texts, languages: languages, numchars: numchars)
-//                if let c = c {
-//                    self?.fetches.remove(c)
-//                }
-//            }
-//            if let c = c {
-//                fetches.insert(c)
-//            }
-//        }
-//        func fetch() {
-//            do {
-//                if untranslated.isEmpty {
-//                    completionSubject.send(translated)
-//                    return
-//                }
-//                let (res, numchars) = try reduce(&untranslated)
-//                var c = 0
-//                res.forEach { s in
-//                    c += s.count
-//                }
-//                if res.isEmpty {
-//                    completionSubject.send(translated)
-//                    return
-//                }
-//                fetch(texts: res, languages: to, numchars: numchars)
-//            } catch {
-//                completionSubject.send(completion: .failure(error))
-//                return
-//            }
-//        }
-//        fetch()
-//        return completionSubject.eraseToAnyPublisher()
-//    }
     private func translate(_ texts: [TranslationKey : String], from: LanguageKey, to: LanguageKey, storeIn table: TextTranslationTable) -> FinishedPublisher {
         var table = table
         var untranslated = [String]()
