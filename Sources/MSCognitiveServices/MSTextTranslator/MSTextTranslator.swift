@@ -9,6 +9,8 @@ let maxStrings = 99
 let charsPerMinute = 30000
 var totalChars = 0
 
+/// Used to store cancellables
+private var cancellables = Set<AnyCancellable?>()
 private func reduce(_ texts: inout [String], _ res: [String] = [], _ count: Int = 0) throws -> ([String], Int) {
     guard texts.isEmpty == false, let string = texts.first else {
         return (res, count)
@@ -140,20 +142,7 @@ private func getTranslations(token: String, texts: [String], from: LanguageKey, 
         }
         .eraseToAnyPublisher()
 }
-private var cancellables = Set<AnyCancellable>()
 
-func add(_ cancellable:AnyCancellable?) {
-    guard let cancellable = cancellable else {
-        return
-    }
-    cancellables.insert(cancellable)
-}
-func remove(_ cancellable:AnyCancellable?) {
-    guard let cancellable = cancellable else {
-        return
-    }
-    cancellables.remove(cancellable)
-}
 public final class MSTextTranslator: TextTranslationService, ObservableObject {
     public struct Config: Equatable {
         var key: String
@@ -213,13 +202,13 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
                         self?.logger.error("Error while translating from \(from) to \(to)", texts)
                     case .finished: break;
                     }
-                    remove(c)
+                    cancellables.remove(c)
                 } receiveValue: { results in
                     translated.append(contentsOf: results)
                     fetch()
-                    remove(c)
+                    cancellables.remove(c)
                 }
-                add(c)
+                cancellables.insert(c)
             } catch {
                 completionSubject.send(completion: .failure(error))
                 return
@@ -345,7 +334,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
                     self?.logger.error(error)
                 case .finished: break;
                 }
-                remove(c)
+                cancellables.remove(c)
             } receiveValue: { [weak self] table in
                 guard let lang = to.first else {
                     completionSubject.send(table)
@@ -354,9 +343,9 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
                 }
                 to.removeFirst()
                 translate(in: lang, storeIn: table)
-                remove(c)
+                cancellables.remove(c)
             }
-            add(c)
+            cancellables.insert(c)
         }
         guard let lang = to.first else {
             return CurrentValueSubject(table).receive(on: DispatchQueue.main).eraseToAnyPublisher()
