@@ -20,12 +20,13 @@ let package = Package(
         .package(name: "TTS", url: "https://github.com/helsingborg-stad/spm-tts.git", from: "0.2.2"),
         .package(name: "STT", url: "https://github.com/helsingborg-stad/spm-stt.git", from: "0.2.3"),
         .package(name: "FFTPublisher", url: "https://github.com/helsingborg-stad/spm-fft-publisher.git", from: "0.1.2"),
-        .package(name: "AudioSwitchboard", url: "https://github.com/helsingborg-stad/spm-audio-switchboard.git", from: "0.1.3")
+        .package(name: "AudioSwitchboard", url: "https://github.com/helsingborg-stad/spm-audio-switchboard.git", from: "0.1.3"),
+        .package(name: "AsyncPublisher", url: "https://github.com/tomasgreen/AsyncPublisher", from: "0.1.1")
     ],
     targets: [
         .target(
             name: "MSCognitiveServices",
-            dependencies: ["TTS", "FFTPublisher", "MicrosoftCognitiveServicesSpeech", "AudioSwitchboard","Shout", "TextTranslator","STT"]),
+            dependencies: ["TTS", "FFTPublisher", "MicrosoftCognitiveServicesSpeech", "AudioSwitchboard","Shout", "TextTranslator","STT","AsyncPublisher"]),
         .testTarget(
             name: "MSCognitiveServicesTests",
             dependencies: ["MSCognitiveServices"]),
