@@ -36,12 +36,7 @@ struct MSTranslationResult: Codable {
     var translations: [LanguageKey: TranslatedValue]
 }
 public enum MSTranslatorError: Error {
-    case urlParse
     case missingAuthenticator
-    case missingAPIKey
-    case missingToken
-    case unableToParseIssueToken
-    case unableToTranslate
     case resultCountMissmatch
     case resultMissing
     case maximumNumberOfCharsExceeded
@@ -93,10 +88,10 @@ func convertVariables(string:String,find:String,replaceWith:String) -> String {
 }
 private func getTranslations(token: String, texts: [String], from: LanguageKey, to: [LanguageKey]) -> AnyPublisher<[MSTranslationResult],Error> {
     guard let endpoint = URL(string: "https://api-eur.cognitive.microsofttranslator.com/translate") else {
-        return Fail(error: MSTranslatorError.urlParse).eraseToAnyPublisher()
+        return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
     }
     guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
-        return Fail(error: MSTranslatorError.urlParse).eraseToAnyPublisher()
+        return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
     }
     components.queryItems = [
         URLQueryItem(name: "api-version", value: "3.0"),
@@ -105,7 +100,7 @@ private func getTranslations(token: String, texts: [String], from: LanguageKey, 
         URLQueryItem(name: "textType", value: "html")
     ]
     guard let url = components.url else {
-        return Fail(error: MSTranslatorError.urlParse).eraseToAnyPublisher()
+        return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
     }
     var request: URLRequest
     request = URLRequest(url: url)
