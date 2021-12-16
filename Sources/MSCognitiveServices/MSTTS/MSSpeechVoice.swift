@@ -17,6 +17,7 @@ extension String {
         return prefix(1).lowercased() + dropFirst()
     }
 }
+/// Extension of JSONDecoder used by voices api
 extension JSONDecoder {
     struct AnyKey: CodingKey {
         var stringValue: String
@@ -32,60 +33,62 @@ extension JSONDecoder {
             self.stringValue = String(intValue)
         }
     }
+    /// Camel-Caps to Camel-Case decoding strategy
     static var camelCapsToCamelCaseStrategy = JSONDecoder.KeyDecodingStrategy.custom({ key -> CodingKey in
         let rawKey = key.last!.stringValue
         let camelCaseValue = rawKey.deCapitalizingFirstLetter()
         return JSONDecoder.AnyKey(stringValue: camelCaseValue)!
     })
 }
+/// Errors describing MSSpeechVoice failures
 public enum MSSpeechVoiceError: Error {
     case missingContent
 }
+/// The MSSpeechVocie desbires voices available for playback using the Microsoft TTS
 public struct MSSpeechVoice: Codable, Equatable {
+    /// Description of Language from MS backend
     public typealias MSLanguage = String
+    /// Dictionary of voices by language and type of voice
     public typealias Directory = [MSLanguage: [VoiceType: [MSSpeechVoice]]]
     
+    /// Type of voice
     public enum VoiceType: String, Codable {
+        /// Will be deprecated at some point since Microsoft is not longer training traditional voices
         case standard
+        /// Neural, high quality machine learning enhanced voices
         case neural
     }
-    public enum VoiceStyle: String, Codable {
-        case affectionate = "affectionate"
-        case angry = "angry"
-        case assistant = "assistant"
-        case calm = "calm"
-        case chat = "chat"
-        case cheerful = "cheerful"
-        case customerservice = "customerservice"
-        case depressed = "depressed"
-        case disgruntled = "disgruntled"
-        case embarrassed = "embarrassed"
-        case empathetic = "empathetic"
-        case fearful = "fearful"
-        case gentle = "gentle"
-        case lyrical = "lyrical"
-        case newscast = "newscast"
-        case newscastCasual = "newscast-casual"
-        case newscastFormal = "newscast-formal"
-        case sad = "sad"
-        case serious = "serious"
-    }
+    /// The id of the voice
     public var id: String {
         return shortName
     }
+    /// The name of the voice, unclear usecase
     public let name: String
+    /// Name used for display
     public let displayName: String
+    /// "Local name", unclear usecase
     public let localName: String
+    /// Short name used when synthesizing text
     public let shortName: String
+    /// The gender of the voice
     public let gender: TTSGender
+    /// The locale of the voice
     public let locale: String
+    /// The language of the voice
     public let language: String
+    /// The available ample rate (max sample rate?)
     public let sampleRateHertz: String
+    /// Type of voice
     public let voiceType: VoiceType
+    /// Development status, like "preview"
     public let status: String
+    /// Voice styles, like "calm" or "newscast"
     public let styleList: [String]
+    /// Basically the age ot the voice
     public let rolePlayList: [String]
-
+    
+    /// Initializes a new voice from a decoder
+    /// - Parameter decoder: the decoder
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         self.name = try values.decode(String.self, forKey: .name)
@@ -111,6 +114,7 @@ public struct MSSpeechVoice: Codable, Equatable {
         }
         self.status = try values.decode(String.self, forKey: .status)
     }
+    /// The output format of the voice, used by the `MSAudioBufferPlayer`
     public var outputFormat: SPXSpeechSynthesisOutputFormat {
         if sampleRateHertz == "24000" {
             return SPXSpeechSynthesisOutputFormat.riff24Khz16BitMonoPcm
@@ -119,6 +123,11 @@ public struct MSSpeechVoice: Codable, Equatable {
         }
         return SPXSpeechSynthesisOutputFormat.riff8Khz16BitMonoPcm
     }
+    /// Creates a publsiher for fetching voices from the microsoft backend
+    /// - Parameters:
+    ///   - token: the access token to be used
+    ///   - region: the region to fetch from
+    /// - Returns: a completion publisher
     public static func publisher(token:String, region:String) -> AnyPublisher<Directory,Error> {
         guard let endpoint = URL(string: "https://\(region).tts.speech.microsoft.com/cognitiveservices/voices/list") else {
             return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
@@ -147,11 +156,20 @@ public struct MSSpeechVoice: Codable, Equatable {
                 return res
             }.eraseToAnyPublisher()
     }
+    /// Creates a publsiher for fetching voices from the microsoft backend
+    /// - Parameter config: the configuration to be used when fetching vocies
+    /// - Returns: a completion publisher
     public static func publisher(using config: MSTTS.Config) -> AnyPublisher<Directory,Error> {
         MSCognitiveAuthenticator(key: config.key, region: config.region).getToken().flatMap { token -> AnyPublisher<Directory,Error> in
             Self.publisher(token: token, region: config.region)
         }.eraseToAnyPublisher()
     }
+    /// Returns the best avaiblable voice based on locale and gender
+    /// - Parameters:
+    ///   - dictionary: all availble voices to choose from
+    ///   - locale: locale of the boice
+    ///   - gender: gender of the voice
+    /// - Returns: voice (if avaible) based on the locale and gender
     public static func bestvoice(in dictionary:Directory, for locale: Locale, with gender: TTSGender) -> MSSpeechVoice? {
         let code = locale.languageCode ?? locale.identifier
         guard let voices = dictionary[code] else {
@@ -177,6 +195,12 @@ public struct MSSpeechVoice: Codable, Equatable {
         }
         return nil
     }
+    /// Determines whether or not there is support for a specific locale and gender
+    /// - Parameters:
+    ///   - locale: locale to search for
+    ///   - dictionary: dictionary to search
+    ///   - gender: the gender of the voicie
+    /// - Returns: whether or not a voice is available
     public static func hasSupport(for locale: Locale, in dictionary:Directory, gender:TTSGender) -> Bool {
         let code = locale.languageCode ?? locale.identifier
         guard let voices = dictionary[code] else {
@@ -189,6 +213,11 @@ public struct MSSpeechVoice: Codable, Equatable {
         }
         return false
     }
+    /// Determines whether or not there is support for a specific locale
+    /// - Parameters:
+    ///   - locale: locale to search for
+    ///   - dictionary: dictionary to search
+    /// - Returns: whether or not a voice is available
     public static func hasSupport(for locale: Locale, in dictionary:Directory) -> Bool {
         let code = locale.languageCode ?? locale.identifier
         guard let voices = dictionary[code] else {

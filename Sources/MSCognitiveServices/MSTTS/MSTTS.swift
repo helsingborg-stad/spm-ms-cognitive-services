@@ -13,33 +13,54 @@ import TTS
 import Shout
 import FFTPublisher
 import AudioSwitchboard
-// https://github.com/Azure-Samples/cognitive-services-speech-sdk/issues/102
+
+/// Errors caused by failrues in MSTTS
 public enum MSTTSError : Error {
     case unsupportedVoiceProperties
     case missingConfig
     case serviceUnavailable
 }
+/// Status object used to indicate the status of MSTTS Voice fetches
 public enum MSTTSFetchVoiceStatus {
+    /// No status
     case none
+    /// Completed
     case finished
+    /// Failed with error
     case failed(Error)
 }
+/// MSSTS is a concrete implementation of the `TTSService` protocol. The class uses the MicrosoftCognitiveServicesSpeech framework to synthesize speech from text.
 public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
+    /// The confiuratio needed to connect to microsft backend
     public struct Config : Equatable {
+        /// The access key
         public let key: String
+        /// The region of the service
         public let region: String
+        /// Initializes a new confiuration
+        /// - Parameters:
+        ///   - key: The access key
+        ///   - region: The region of the service
         public init(key: String, region: String) {
             self.key = key
             self.region = region
         }
     }
+    /// Subject used when cancelling
     private let cancelledSubject: TTSStatusSubject = .init()
+    /// Subject used when playback finishes
     private let finishedSubject: TTSStatusSubject = .init()
+    /// Subject used when playback is started
     private let startedSubject: TTSStatusSubject = .init()
+    /// Subject used when a word boundary is triggered
     private let speakingWordSubject: TTSWordBoundarySubject = .init()
+    /// Subject used to trigger failures
     private let failureSubject: TTSFailedSubject = .init()
+    /// Cancellables store
     private var cancellables = Set<AnyCancellable>()
+    /// The synthesizer used to create and play audio
     private var synthesizer: MSSpeechSynthesizer
+    /// Indicates whether or not audio can be played
     private var audioAvailable:Bool = true {
         didSet {
             updateAvailable()
@@ -51,21 +72,28 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
     public var startedPublisher: TTSStatusPublisher { startedSubject.eraseToAnyPublisher() }
     public var speakingWordPublisher: TTSWordBoundaryPublisher { speakingWordSubject.eraseToAnyPublisher() }
     public var failurePublisher: TTSFailedPublisher { failureSubject.eraseToAnyPublisher() }
+    
+    /// Indicates the current voice fetch status
     @Published public var fetchVoicesStatus:MSTTSFetchVoiceStatus = .none
     
+    /// The id of the service
     public let id: TTSServiceIdentifier = "MSTTS"
+    /// Indicates whether or not the service is available for use
     @Published public private(set) var available:Bool = false
+    /// The available list of voices
     @Published public private(set) var voices = MSSpeechVoice.Directory() {
         didSet {
             updateAvailable()
         }
     }
     
+    /// Pronounciations to be used when sytnhesizing
     public var pronunciations = [MSPronunciation]() {
         didSet {
             self.synthesizer.pronunciations = pronunciations
         }
     }
+    /// Current configuration
     /// Updates the voices if config changes. Will remove voices if new value is nil
     public var config:Config? {
         set {
@@ -81,11 +109,17 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
         }
         get { return synthesizer.config }
     }
+    /// Instance used for visualizing audio
     public weak var fft: FFTPublisher? {
         didSet {
             synthesizer.audioPlayer.fft = fft
         }
     }
+    /// Initializes a new MSTTS object
+    /// - Parameters:
+    ///   - config: configuration to be used when fetching voices and syntheizing audio
+    ///   - audioSwitchboard: the swiftboard used when playing audio
+    ///   - fft: Instance used for visualizing audio
     public init(config: Config?, audioSwitchboard:AudioSwitchboard, fft: FFTPublisher? = nil) {
         self.synthesizer = MSSpeechSynthesizer(config,audioSwitchboard: audioSwitchboard)
         synthesizer.audioPlayer.fft = fft
@@ -102,15 +136,20 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
             }
         }.store(in: &cancellables)
     }
+    /// Pause playback
     public final func pause() {
         synthesizer.pause()
     }
+    /// Continue playback
     public final func `continue`() {
         synthesizer.continue()
     }
+    /// Stop playback
     public func stop() {
         synthesizer.stopSpeaking()
     }
+    /// Start playback of utterance
+    /// - Parameter utterance: the utterance to play
     public func start(utterance: TTSUtterance) {
         if available == false {
             failureSubject.send(TTSFailure(utterance: utterance, error: MSTTSError.serviceUnavailable))
@@ -157,7 +196,8 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
         }
         return MSSpeechVoice.hasSupport(for: locale, in: voices)
     }
-
+    
+    /// Update list of available voices
     private func updateVoices() {
         guard let config = config else {
             return
@@ -182,6 +222,7 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
             cancellables.insert(p)
         }
     }
+    /// Updates the available property
     private func updateAvailable() {
        available = config != nil && audioAvailable && voices.isEmpty == false
     }

@@ -15,26 +15,67 @@ import MicrosoftCognitiveServicesSpeech
 import AudioSwitchboard
 
 // MARK: MSSpeechSynthesizerDelegate
+/// Protocol implemeted by any object using the MSSpeechSynthesizer
 protocol MSSpeechSynthesizerDelegate: AnyObject {
+    /// Triggered while peparing an utterance for synthesis
+    /// - Parameters:
+    ///   - synthesizer: the originating synthesizer
+    ///   - utterance: the utterance being prepared
     func speechSynthesizer(_ synthesizer: MSSpeechSynthesizer, preparing utterance: TTSUtterance)
+    /// Triggered when starting an utterance for synthesis
+    /// - Parameters:
+    ///   - synthesizer: the originating synthesizer
+    ///   - utterance: the started utterance
     func speechSynthesizer(_ synthesizer: MSSpeechSynthesizer, didStart utterance: TTSUtterance)
+    /// Triggered when cancelling an utterance while being sythensizes (or prepared)
+    /// - Parameters:
+    ///   - synthesizer: the originating synthesizer
+    ///   - utterance: the cancelled utterance
     func speechSynthesizer(_ synthesizer: MSSpeechSynthesizer, didCancel utterance: TTSUtterance)
+    /// Triggered when an utterance is completed
+    /// - Parameters:
+    ///   - synthesizer: the originating synthesizer
+    ///   - utterance: the finished utterance
     func speechSynthesizer(_ synthesizer: MSSpeechSynthesizer, didFinish utterance: TTSUtterance)
+    /// Triggered when an utterance fails
+    /// - Parameters:
+    ///   - synthesizer: the originating synthesizer
+    ///   - utterance: the failing utterance
+    ///   - error: error causing the failure
     func speechSynthesizer(_ synthesizer: MSSpeechSynthesizer, didFail utterance: TTSUtterance, with error: Error)
+    /// Triggered when an a segment of an utterance is being spoken
+    /// - Parameters:
+    ///   - synthesizer: the originating synthesizer
+    ///   - word: the word being spoken
+    ///   - range: the rang of the spoken text in reference to `utterance.speechString`
+    ///   - utterance: the failing utterance
     func speechSynthesizer(_ synthesizer: MSSpeechSynthesizer, willSpeak word: String, at range: Range<String.Index>, utterance: TTSUtterance)
 }
 
+// MARK: MSPronunciation
+/// Object used to replace values in strings that require some kind of special treatment, like a phonetic description.
 public struct MSPronunciation {
+    /// The pattern used with NSRegularExpression
     let pattern: String
+    /// The string to replace the original with
     let replacement: String
+    /// The regepx used when replacing strings
     let regexp: NSRegularExpression?
+    /// The oroginal text to be replaced
     let original:String
+    /// Initializes a new MSPronunciation
+    /// - Parameters:
+    ///   - string: The oroginal text to be replaced
+    ///   - replacement: The regepx used when replacing strings
     public init(string: String, replacement: String) {
         self.original = string
         self.pattern = #"(\s+|^)(\#(string))(\W|$)"#
         self.replacement = replacement
         regexp = try? NSRegularExpression(pattern: pattern)
     }
+    /// Execute replacement algorithm until no match can be found
+    /// - Parameter string: the string used when searching and replacing values based on `original` and `replacement`
+    /// - Returns: processed string
     func execute(using string: String) -> String {
         var string = string
         while let str = replace(using: string) {
@@ -42,6 +83,9 @@ public struct MSPronunciation {
         }
         return string
     }
+    /// Replace all occuranses of `original` with `replacement` in `string`
+    /// - Parameter string: the string used when searching and replacing values based on `original` and `replacement`
+    /// - Returns: processed string
     func replace(using string: String) -> String? {
         guard let regexp = regexp else {
             return nil
@@ -57,14 +101,26 @@ public struct MSPronunciation {
         return string.replacingCharacters(in: range, with: replacement)
     }
 }
-
+// MARK: UtteranceFileInfo
+/// Used by the synthesiser to determine the file status of an utterance.
 private struct UtteranceFileInfo {
+    /// The audio file name
     let audioFileName: String
+    /// The word baoundary json file name
     let wordBoundaryName: String
+    /// The audio file url
     let audioFileUrl: URL
+    /// The word boundar json file url
     let wordBoundaryUrl: URL
+    /// Word boundarys read
     let wordBoundaries: [MSWordBoundary]
+    /// Describes whether or not the utterance can be played from cache or not
     var playFromCache: Bool
+    
+    /// Initializes a new object based on the supplied parameters
+    /// - Parameters:
+    ///   - utterance: the utterance
+    ///   - ssml: the computed ssml based on the `utterance.speechString`
     init(utterance: TTSUtterance,ssml:String) {
         let fm = FileManager.default
         let cacheDir = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("MSTTSCache4")
@@ -95,11 +151,15 @@ private struct UtteranceFileInfo {
             playFromCache = true
         }
     }
+    /// Deletes all cache
     func deleteCache() {
         try? FileManager.default.removeItem(atPath: audioFileUrl.path)
         try? FileManager.default.removeItem(atPath: wordBoundaryUrl.path)
         debugPrint("DELETED MSTTS file cache",audioFileUrl.path,wordBoundaryUrl.path)
     }
+    /// Hashes a string using SHA256
+    /// - Parameter string: the string to hash
+    /// - Returns: a SHA256 hashed string value
     static func hash(string:String) -> String {
         let inputString = string
         let inputData = Data(inputString.utf8)
@@ -109,41 +169,67 @@ private struct UtteranceFileInfo {
 }
 
 // MARK: MSWordBoundary
+/// Internal word boundar object used for processing
 private struct MSWordBoundary: Codable {
+    /// The utterance id
     let utterance: TTSUtterance.ID
+    /// The start of a word in a string
     let startIndex: Int
+    /// The end of a word in a string
     let endIndex: Int
+    /// The word itself
     let word: String
+    /// The audio offset in time from start
     let audioOffset: Float
 }
 
 // MARK: MSSpeechSynthesizer
+/// The MSSpeechSynthesizer is used to synthesise text to speech and playback of audio
 class MSSpeechSynthesizer {
+    
+    /// Errors describing utterance failures
     enum MSUtteranceError: Error {
         case missingVoice
         case cancelledWhileDownloading
     }
+    /// Errors decribing synhesis errors
     enum MSSpeechSynthesizerError: Error {
         case cancellationError(String)
     }
-
+    
+    /// Logging events for debug
     private var logger = Shout("MSSpeechSynthesizer")
+    /// Microsoft sythensiser
     private var synthesizer: SPXSpeechSynthesizer?
+    /// Currently utterance for processing and playback
     private var currentUtterance: TTSUtterance?
+    /// Cancellable attatched to the audioplayer status
     private var playerPublisher: AnyCancellable?
+    /// Cancellable attatched to the audioplayer playback time
     private var timePublisher: AnyCancellable?
+    /// Current word boundaries
     private var wordBoundaries = [MSWordBoundary]()
+    /// Audioplayer used for playback
     private (set) var audioPlayer:MSBufferAudioPlayer
+    /// Delegate used for triggering events
     weak var delegate: MSSpeechSynthesizerDelegate?
     
+    /// Indicates whether or not word boundary processing is enabled
     var enableWordBoundary = true
+    /// Pronunciations to be used for replacing strings
     var pronunciations = [MSPronunciation]()
+    /// Configuration used to communicate with Microsoft backend
     var config: MSTTS.Config?
     
+    /// Initializes
+    /// - Parameters:
+    ///   - config: Configuration used to communicate with Microsoft backend
+    ///   - audioSwitchboard: Swiftboard used to manage audio
     init(_ config: MSTTS.Config?, audioSwitchboard:AudioSwitchboard) {
         self.config = config
         self.audioPlayer = MSBufferAudioPlayer(audioSwitchboard)
     }
+    /// Stop playback
     func stopSpeaking() {
         do {
             if let utterance = currentUtterance {
@@ -162,12 +248,18 @@ class MSSpeechSynthesizer {
             logger.error(error)
         }
     }
+    /// Pause playback
     func pause() {
         audioPlayer.pause()
     }
+    /// Continue playback
     func `continue`() {
         audioPlayer.continue()
     }
+    /// Generate and play an utterance using a specific voice
+    /// - Parameters:
+    ///   - utterance: utterance to be used
+    ///   - voice: voice to be used
     func speak(_ utterance: TTSUtterance, using voice:MSSpeechVoice) {
         if utterance.id == currentUtterance?.id {
             return
@@ -198,6 +290,12 @@ class MSSpeechSynthesizer {
             }
         }
     }
+    /// Play an utterance using a `MSBufferAudioPlayer`
+    /// - Parameters:
+    ///   - utterance: utterance reference
+    ///   - voice: voice to be used
+    ///   - ssml: ssml to be spoken
+    ///   - fileInfo: audio and word boundary file info
     private func synthesizeSSMLToAudioPlayer(utterance: TTSUtterance, voice: MSSpeechVoice, ssml: String, fileInfo: UtteranceFileInfo) {
         playerPublisher = audioPlayer.status.sink { [weak self] (item) in
             guard let this = self, item.id == utterance.id else {
@@ -241,6 +339,13 @@ class MSSpeechSynthesizer {
             talk(time: time)
         }
     }
+    /// Downloads an audio file and creates a word baoundary json later uses for playback
+    /// - Parameters:
+    ///   - utterance: the utterance
+    ///   - voice: the voice to be used
+    ///   - ssml: ssml to be used for synthesis
+    ///   - fileInfo: file info object used to extract file urls
+    ///   - completionHandler: completion closure
     private func createFile(utterance: TTSUtterance, voice: MSSpeechVoice, ssml: String, fileInfo: UtteranceFileInfo, completionHandler: @escaping (Error?) -> Void) {
         do {
             guard let config = config else {
@@ -317,13 +422,24 @@ class MSSpeechSynthesizer {
         }
     }
 }
+
+/// Maxamium tts rate
 let MSVoiceSynthesisMaximumRate:Double = 300
+/// Minumum tts rate
 let MSVoiceSynthesisMinimumRate:Double = -100
+/// Default tts rate
 let MSVoiceSynthesisDefaultRate:Double = 0
 
+/// Maxamium tts pitch
 let MSVoiceSynthesisMaximumPitch:Double = 50
+/// Minumum tts pitch
 let MSVoiceSynthesisMinimumPitch:Double = -50
+/// Default tts pitch
 let MSVoiceSynthesisDefaultPitch:Double = 0
+
+/// Converts the rate of the voice from the standard TTSUtterance value to a MSTTS compatible number
+/// - Parameter value: the rate from a TTSUtterance
+/// - Returns: converted value, positive and negative percentage from normal 0%
 func convertVoiceRate(_ value:Double) -> Double {
     let minRate = MSVoiceSynthesisMinimumRate + 100
     let maxRate = MSVoiceSynthesisMaximumRate + 100
@@ -332,6 +448,9 @@ func convertVoiceRate(_ value:Double) -> Double {
     val = min(max(val,minRate),maxRate) - 100
     return Double(Int(val))
 }
+/// Converts the pitch of the voice from the standard TTSUtterance value to a MSTTS compatible number
+/// - Parameter value: the pitch from a TTSUtterance
+/// - Returns: converted value, positive and negative percentage from normal 0%
 func convertVoicePitch(_ value:Double) -> Double {
     let minPitch = MSVoiceSynthesisMinimumPitch + 50
     let maxPitch = MSVoiceSynthesisMaximumPitch + 50
@@ -340,10 +459,16 @@ func convertVoicePitch(_ value:Double) -> Double {
     val = min(max(val,minPitch),maxPitch) - 50
     return Double(Int(val))
 }
+/// Creates an an from a `TTSUtterance`, a `MSSpeechVoice` and a list of `MSPronunciation`
+/// - Parameters:
+///   - utterance: the utterance
+///   - voice: the voice
+///   - pronunciations: the pronunciations
+/// - Returns: ssml represeting the above parameters
 func convertToSSML(utterance: TTSUtterance, voice: MSSpeechVoice, pronunciations:[MSPronunciation]) -> String {
     return """
     <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xmlns:emo="http://www.w3.org/2009/10/emotionml" xml:lang="\(voice.locale.replacingOccurrences(of: "_", with: "-"))">
-    <voice name="\(voice.shortName)">
+        <voice name="\(voice.shortName)">
         <mstts:silence type="Leading" value="0" />
         <prosody rate="\(convertVoiceRate(utterance.voice.rate ?? 1))%" pitch="\(convertVoicePitch(utterance.voice.pitch ?? 1))%">
             \(update(string: utterance.speechString, using: pronunciations))

@@ -4,6 +4,7 @@ import Combine
 import FFTPublisher
 import AudioSwitchboard
 
+/// Status of the audio player
 internal enum AudioPlayerStatus {
     case started
     case paused
@@ -11,40 +12,70 @@ internal enum AudioPlayerStatus {
     case cancelled
     case failed
 }
+/// Describes an playable item and it's status
 internal struct AudioPlayerItem {
+    /// The id of the item
     var id: String
+    /// The audio player status in refernce to the specific `id`
     var status: AudioPlayerStatus
+    /// An error that occured
     var error: Error?
 }
+/// Audioplayer based on the AVAudioEngine
 internal class MSBufferAudioPlayer: ObservableObject {
+    /// AudioBufferPlayer Errors
     enum AudioBufferPlayerError: Error {
+        /// Triggered when audio input format cannot be determined
         case unableToInitlializeInputFormat
+        /// Triggered when audio output format cannot be determined
         case unableToInitlializeOutputFormat
+        /// Triggered if the audio converter cannot be configured (probaby due to unsupported formats)
         case unableToInitlializeAudioConverter
+        /// Trigggered when the buffer format cannot be  determined
         case unableToInitlializeBufferFormat
+        /// Triggered when an unknown buffertype is discovered
         case unknownBufferType
+        /// Triggered when a PCMBuffer cannot be created
         case unableToCreateBuffer
+        /// Triggered in case the buffer is empty when it shouldn't be
         case emptyBuffer
     }
+    /// Instance used to produce and publish meter values
     weak var fft: FFTPublisher?
+    /// Used to send player status updates
     let statusSubject: PassthroughSubject<AudioPlayerItem, Never> = .init()
+    /// Status update publisher
     let status: AnyPublisher<AudioPlayerItem, Never>
+    /// Used to publish playback time of the audio file.
     let playbackTime: PassthroughSubject<Float, Never> = .init()
+    /// The output format used in the AVAudioEngine
     private let outputFormat = AVAudioFormat(commonFormat: AVAudioCommonFormat.pcmFormatFloat32, sampleRate: 24000, channels: 1, interleaved: false)
+    /// Used to subscribe to the AudioSwitchboard claim publisher
     private var cancellable:AnyCancellable?
+    /// Indicates whether or not the current utterance is playing
     private(set) var isPlaying: Bool = false
+    /// Switchboard used to claim the audio channels
     private let audioSwitchboard:AudioSwitchboard
+    /// The player used to play audio
     private let player: AVAudioPlayerNode = AVAudioPlayerNode()
+    /// The audio buffer size. 512 is not officially supported by Apple but it works anyway. It's set to 512 to speed up FFT calculations and reduce lag.
     private let bufferSize: UInt32 = 512
+    /// Id of the currently playing audio
     private var currentlyPlaying: String? = nil {
         didSet {
             isPlaying = currentlyPlaying != nil
         }
     }
+    /// Initializes a MSBufferAudioPlayer
+    /// - Parameter audioSwitchboard: Switchboard used to claim the audio channels
     init(_ audioSwitchboard:AudioSwitchboard) {
         self.audioSwitchboard = audioSwitchboard
         self.status = statusSubject.receive(on: DispatchQueue.main).eraseToAnyPublisher()
     }
+    /// Play a bffer using the current `AVAudioPlayerNode`
+    /// - Parameters:
+    ///   - buffer: buffer to play
+    ///   - id: the id of the buffer
     private func play(buffer: AVAudioBuffer, id: String) throws {
         func schedule(buffer: AVAudioPCMBuffer, id: String) {
             self.statusSubject.send(AudioPlayerItem(id: id, status: .started))
@@ -80,6 +111,8 @@ internal class MSBufferAudioPlayer: ObservableObject {
             schedule(buffer: convertedBuffer, id: id)
         }
     }
+    /// Posts the current position to `playbackTime`
+    /// - Parameter rate: the rate of the player
     private func postCurrentPosition(for rate: Float) {
         guard self.player.isPlaying else {
             return
@@ -89,6 +122,7 @@ internal class MSBufferAudioPlayer: ObservableObject {
             self.playbackTime.send(elapsedSeconds)
         }
     }
+    /// Continue playing
     func `continue`() {
         guard currentlyPlaying != nil else {
             return
@@ -97,6 +131,7 @@ internal class MSBufferAudioPlayer: ObservableObject {
             player.play()
         }
     }
+    /// Pause playing
     func pause() {
         guard currentlyPlaying != nil else {
             return
@@ -105,6 +140,7 @@ internal class MSBufferAudioPlayer: ObservableObject {
             player.pause()
         }
     }
+    // Stop playing
     func stop() {
         if let currentlyPlaying = currentlyPlaying {
             statusSubject.send(AudioPlayerItem(id: currentlyPlaying, status: .cancelled))
@@ -114,6 +150,10 @@ internal class MSBufferAudioPlayer: ObservableObject {
         player.stop()
         self.fft?.end()
     }
+    /// Play buffer from an audio file
+    /// - Parameters:
+    ///   - url: the url of the audio file
+    ///   - id: an id represting the file
     func play(using url: URL, id: String) {
         stop()
         currentlyPlaying = id
