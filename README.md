@@ -71,6 +71,35 @@ More information can be found at https://github.com/helsingborg-stad/spm-dragoma
 ### Limitations
 There are a number of limitations to the api depending on your subscription level. The framework them all into account with one exception and that's number of requests per minute. You can read more about the limitations here: https://docs.microsoft.com/en-us/azure/cognitive-services/translator/request-limits
 
+
+## MSTTS 
+`MSTTS` is a concrete implementation of the `TTService` protocol. In order for the library to function you need to include the `AudioSwitchBoard` package: https://github.com/helsingborg-stad/spm-audio-switchboard
+ 
+```swift
+let switchboard = AudioSwitchBoard()
+let tts = MSTTS(config: .init(key:"your key", region:"service region"), audioSwitchboard: switchboard)
+
+// Add phonemes or an other replacment for specific words or phrases
+tts.pronunciations = [
+    .init(string: "some word", replacement: "<phoneme alphabet='ipa' ph='PHONEME'>some word</phoneme>")
+]
+// Create an utterance. With the utterance you can also follow status of that specific utterance using it's status property
+let u = TTSUtterance("Testing the microsoft text to speech library", locale: Locale(identifier:"en-US"))
+
+// Wait for the service to be available, it need to grab all available voices before it continues.
+tts.$available.sink { a in 
+    guard a else { return}
+
+    // start speaking
+    tts.start(utterance: u)
+}.store(in:&cancellables)
+```
+
+### Use with TTS
+While the instance can be used as is, it's best used in combination with `TTS` package. The `TTS` package delivers a queue and an abstraction layer to the service. It can also be used to manage more than one service at the time and chooses the best available service to use.
+ 
+More information about how to set this up can be found in the TTS service documentation: https://github.com/helsingborg-stad/spm-tts 
+
 ## Microsoft static framework
 > This section is directed to the developer of this package
 
@@ -84,6 +113,7 @@ Once that's done you need to download the zip file to your computer and run `sha
 
 ## TODO
 
+- [ ] MSTTS and all related classes is due for a refactoring (with concurrency in mind)
 - [ ] list available services
 - [ ] add download support (ie offline support) to the MSTTS 
 - [ ] finish the speech recognizer implementation using the STTService protocol
