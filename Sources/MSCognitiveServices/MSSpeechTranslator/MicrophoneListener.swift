@@ -12,14 +12,20 @@ import Shout
 import FFTPublisher
 import AudioSwitchboard
 
+/// The purpose of the microphone listener is to gather audiodata and run it through the FFTPublisher.
 class MicrophoneListener: ObservableObject {
+    /// Switchboard used to claim and release audio ownership
     private let audioSwitchboard:AudioSwitchboard
+    /// Indicates whether or not the listerner is running
     @Published var running: Bool = false
-    private var switchBoardSubscriber:AnyCancellable?
+    /// FFTPublisher, weak reference!
     weak var fft: FFTPublisher?
+    /// Initializes a new listener
+    /// - Parameter audioSwitchboard: Switchboard used to claim and release audio ownership
     init(_ audioSwitchboard: AudioSwitchboard) {
         self.audioSwitchboard = audioSwitchboard
     }
+    /// Start "recording"
     private func record() {
         audioSwitchboard.claim(owner: "MSMicrophoneListener")
         let audioEngine = audioSwitchboard.audioEngine
@@ -33,6 +39,7 @@ class MicrophoneListener: ObservableObject {
         audioEngine.connect(audioEngine.inputNode, to: sinkNode, format: nil)
         try? audioSwitchboard.start(owner: "MSMicrophoneListener")
     }
+    /// Start listening. This function will ask for recording permissions
     func start() {
         running = true
         if fft == nil {
@@ -56,6 +63,7 @@ class MicrophoneListener: ObservableObject {
             return
         }
     }
+    /// Stop listening, relase switchboard ownership and end FFT.
     func stop() {
         running = false
         audioSwitchboard.stop(owner: "MSMicrophoneListener")

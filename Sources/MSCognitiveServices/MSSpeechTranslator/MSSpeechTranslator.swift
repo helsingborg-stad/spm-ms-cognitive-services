@@ -13,51 +13,87 @@ import AVFoundation
 import MicrosoftCognitiveServicesSpeech
 import AudioSwitchboard
 
+/// The MSSpeechTranslator is an abstraction layer for SPXTranslationRecognizer
 public class MSSpeechTranslator: ObservableObject {
+    /// Configuration used when communicating with backend
     public struct Config {
+        /// Access key
         public let key: String
+        /// Service region
         public let region: String
+        /// Initializes a new config
+        /// - Parameters:
+        ///   - key: acess key
+        ///   - region: service region
         public init(key: String, region: String) {
             self.key = key
             self.region = region
         }
     }
+    /// Describes the end result of the processed speech including transcription and translation
     public struct Result {
+        /// Resulting value
         public struct Value {
+            /// The locale of the text
             public var locale: Locale
+            /// The transcribed/translated value
             public var text: String
         }
+        /// The translated result
         public var translation: Value
+        /// The transcribed result
         public var transcript: Value
     }
+    /// Translation event subject
     public typealias TranslationEvent = PassthroughSubject<Result, Never>
+    /// Status event subject
     public typealias StatusEvent = PassthroughSubject<Void, Never>
-
+    
+    /// Triggers when a translation has completed
     public let finished: TranslationEvent = .init()
+    /// Triggers whenever a preliminary result is returned from the server
     public let intermediateResult: TranslationEvent = .init()
+    /// Triggeres When the service has started
     public let started: StatusEvent = .init()
+    /// Triggeres When the service has ended
     public let stopped: StatusEvent = .init()
-
+    
+    /// Contextual strings used to improve speech recognition.
+    /// - note: The strings must be in the language that is being recognized.
     public var contextualStrings: [String] = [] {
         didSet {
-            updateContextualStrings()
+            updatePhraseListGrammar()
         }
     }
+    /// Configuration used to communicate with backend
     private var config: Config
+    /// The current recognizer used for speech recognition/speech translation
     private var recognizer: SPXTranslationRecognizer?
+    /// Used together with the `contextualStrings` to improve speech recognition
     private var phraseListGrammar: SPXPhraseListGrammar?
+    /// Loggning events
     private var logger = Shout("MSSpeechTranslator")
+    /// Used to capture audio data and process it for the FFT
     private var mic:MicrophoneListener
-
+    /// Used to publish audio data for a visual representation
     public weak var fft: FFTPublisher? {
         didSet {
             mic.fft = fft
         }
     }
+    /// Indicates whether or not the speech translator is recording
     @Published public private(set) var isRecording: Bool = false
+    /// Language used for translation
     @Published public private(set) var translationLanguage: Locale
+    /// Language used for transcription
     @Published public private(set) var spokenLanguage: Locale
-
+    
+    /// Initializes a new instance
+    /// - Parameters:
+    ///   - config: Configuration used to communicate with backendt
+    ///   - audioSwitchboard: Swiftboard used by the `MicrophoneListener` to claim and release recording ownership
+    ///   - spokenLanguage: Language used for transcription
+    ///   - translationLanguage: Language used for transcription
     public init(config: Config, audioSwitchboard:AudioSwitchboard, spokenLanguage: Locale = Locale(identifier: "sv_SE"), translationLanguage: Locale = Locale(identifier: "en_US")) {
         self.config = config
         self.mic = MicrophoneListener(audioSwitchboard)
@@ -65,7 +101,8 @@ public class MSSpeechTranslator: ObservableObject {
         self.spokenLanguage = spokenLanguage
         self.prepare()
     }
-    func updateContextualStrings() {
+    /// Updates the `phraseListGrammar` property based on the avialable `contextualStrings`
+    func updatePhraseListGrammar() {
         guard let recognizer = recognizer else {
             return
         }
@@ -77,6 +114,7 @@ public class MSSpeechTranslator: ObservableObject {
         }
         self.phraseListGrammar = phraseListGrammar
     }
+    /// Stop the speech translation
     public func stop() {
         isRecording = false
         mic.stop()
@@ -93,6 +131,7 @@ public class MSSpeechTranslator: ObservableObject {
             }
         }
     }
+    /// Start translating speech
     public func start() {
         self.isRecording = true
         mic.start()
@@ -114,6 +153,10 @@ public class MSSpeechTranslator: ObservableObject {
             }
         }
     }
+    /// Updates the language properties and re initiates the service
+    /// - Parameters:
+    ///   - spokenLanguage: language used for transcription
+    ///   - translationLanguage: language used for translation
     public func set(spokenLanguage: Locale, translationLanguage: Locale) {
         guard self.spokenLanguage != spokenLanguage || self.translationLanguage != translationLanguage else {
             return
@@ -123,6 +166,9 @@ public class MSSpeechTranslator: ObservableObject {
         self.translationLanguage = translationLanguage
         self.prepare()
     }
+    /// Create a `Result` object based on a `SPXTranslationRecognitionResult`
+    /// - Parameter result: result generated by the speech transaltor
+    /// - Returns: result object
     private func createResult(from result: SPXTranslationRecognitionResult) -> Result {
         let target = translationLanguage
         let source = spokenLanguage
@@ -131,6 +177,7 @@ public class MSSpeechTranslator: ObservableObject {
         let transcript = Result.Value(locale: source, text: result.text ?? "")
         return Result(translation: translation, transcript: transcript)
     }
+    /// Prepares the speech translator for recording
     private func prepare() {
         do {
             let target = translationLanguage
@@ -177,7 +224,7 @@ public class MSSpeechTranslator: ObservableObject {
                 }
             }
             self.recognizer = reco
-            self.updateContextualStrings()
+            self.updatePhraseListGrammar()
         } catch {
             self.phraseListGrammar = nil
             self.recognizer = nil
