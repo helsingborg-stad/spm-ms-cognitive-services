@@ -100,7 +100,21 @@ public struct MSPronunciation {
         }
         return string.replacingCharacters(in: range, with: replacement)
     }
+    /// Updates a string using an array of `MSPronunciation`
+    /// - Parameters:
+    ///   - string: the string to update
+    ///   - pronunciations: the pronunciations
+    /// - Returns: processed string
+    static func update(string: String, using pronunciations: [MSPronunciation]) -> String {
+        var string = string
+        pronunciations.forEach { r in
+            string = r.execute(using: string)
+        }
+        return string
+    }
+
 }
+
 // MARK: UtteranceFileInfo
 /// Used by the synthesiser to determine the file status of an utterance.
 private struct UtteranceFileInfo {
@@ -448,6 +462,7 @@ func convertVoiceRate(_ value:Double) -> Double {
     val = min(max(val,minRate),maxRate) - 100
     return Double(Int(val))
 }
+
 /// Converts the pitch of the voice from the standard TTSUtterance value to a MSTTS compatible number
 /// - Parameter value: the pitch from a TTSUtterance
 /// - Returns: converted value, positive and negative percentage from normal 0%
@@ -459,6 +474,7 @@ func convertVoicePitch(_ value:Double) -> Double {
     val = min(max(val,minPitch),maxPitch) - 50
     return Double(Int(val))
 }
+
 /// Creates an an from a `TTSUtterance`, a `MSSpeechVoice` and a list of `MSPronunciation`
 /// - Parameters:
 ///   - utterance: the utterance
@@ -471,17 +487,10 @@ func convertToSSML(utterance: TTSUtterance, voice: MSSpeechVoice, pronunciations
         <voice name="\(voice.shortName)">
         <mstts:silence type="Leading" value="0" />
         <prosody rate="\(convertVoiceRate(utterance.voice.rate ?? 1))%" pitch="\(convertVoicePitch(utterance.voice.pitch ?? 1))%">
-            \(update(string: utterance.speechString, using: pronunciations))
+            \(MSPronunciation.update(string: utterance.speechString, using: pronunciations))
         </prosody>
         <mstts:silence type="Tailing" value="0" />
     </voice>
     </speak>
     """
-}
-func update(string: String, using pronunciations: [MSPronunciation]) -> String {
-    var string = string
-    pronunciations.forEach { r in
-        string = r.execute(using: string)
-    }
-    return string
 }
