@@ -81,12 +81,7 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
     /// Indicates whether or not the service is available for use
     @Published public private(set) var available:Bool = false
     /// The available list of voices
-    @Published public private(set) var voices = MSSpeechVoice.Directory() {
-        didSet {
-            updateAvailable()
-        }
-    }
-    
+    @Published public private(set) var voices = MSSpeechVoice.Directory()
     /// Pronounciations to be used when sytnhesizing
     public var pronunciations = [MSPronunciation]() {
         didSet {
@@ -213,6 +208,7 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
             }
         } receiveValue: { [weak self]  dir in
             self?.voices = dir
+            self?.updateAvailable()
             self?.fetchVoicesStatus = .finished
             if let p = p {
                 self?.cancellables.remove(p)
