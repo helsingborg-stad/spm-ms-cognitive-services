@@ -4,7 +4,7 @@ import Combine
 
 @testable import MSCognitiveServices
 let switchboard = AudioSwitchboard()
-var cancellables = Set<AnyCancellable>()
+private var cancellables = Set<AnyCancellable>()
 
 final class MSCognitiveServicesTests: XCTestCase {
     func testConvertPitchAndRate() throws {
@@ -23,5 +23,25 @@ final class MSCognitiveServicesTests: XCTestCase {
         XCTAssertTrue(convertVoicePitch(1) == MSVoiceSynthesisDefaultPitch)
         XCTAssertTrue(convertVoicePitch(2) == MSVoiceSynthesisMaximumPitch)
         XCTAssertFalse(convertVoicePitch(3) == 300)
+    }
+    func testTextTranslationLangauages() async throws {
+        let values = try await MSTextTranslationLanguage.fetch()
+        XCTAssertFalse(values.isEmpty)
+        XCTAssertTrue(values.contains { $0.locale.identifier == "pt_BR" && $0.key == "pt" })
+    }
+    func testTextTranslatorLanguages() async {
+        let t = MSTextTranslator()
+        let expectation = XCTestExpectation(description: "testTextTranslatorLanguages")
+        t.$fetchLanguagesStatus.sink { status in
+            switch status {
+            case .finished:
+                XCTAssert(t.languages.isEmpty == false)
+                expectation.fulfill()
+            case .failed(let error): XCTFail(error.localizedDescription)
+            case .none: break
+            }
+        }.store(in: &cancellables)
+        
+        wait(for: [expectation], timeout: 10)
     }
 }
