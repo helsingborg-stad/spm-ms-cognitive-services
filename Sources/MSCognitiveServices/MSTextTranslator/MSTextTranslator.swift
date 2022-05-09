@@ -48,7 +48,15 @@ private func reduce(_ texts: inout [String], _ res: [String] = [], _ count: Int 
     texts.removeFirst()
     return try reduce(&texts, r, count + numChars)
 }
-
+/// Status object used to indicate the status of MSTextTranslatorLanguages fetches
+public enum MSTextTranslatorFetchLanguagesStatus {
+    /// No status
+    case none
+    /// Completed
+    case finished
+    /// Failed with error
+    case failed(Error)
+}
 /// The final parsed result from the translator api
 struct MSTranslationResult: Codable {
     /// Original text
@@ -214,6 +222,9 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             self.region = region
         }
     }
+    /// Indicates the current voice fetch status
+    @Published public var fetchLanguagesStatus:MSTTSFetchVoiceStatus = .none
+    
     /// The authenticator used to aquire an access token
     private var authenticator: MSCognitiveAuthenticator?
     /// Logger used to log events
@@ -231,12 +242,16 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             self.authenticator = MSCognitiveAuthenticator(key: config.key, region: config.region)
         }
     }
+    /// Set of supported languages
+    @Published public private(set) var languages = Set<MSTextTranslationLanguage>()
+    
     /// Initializes a new `MSTextTranslator` object
     /// - Parameter config: configuration to use
     public init(config: Config? = nil) {
         if let config = config {
             self.authenticator = MSCognitiveAuthenticator(key: config.key, region: config.region)
         }
+        self.updateLanguages()
     }
     /// Translates an array of strings from one language to another using the microsoft transaltor api.
     /// - Parameters:
@@ -426,7 +441,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
     ///   - to: the languages to translate the text into
     ///   - table: the table to store the transaltions in
     /// - Returns: table containing the translated strings
-    final public func translateAsync(_ texts: [String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable = .init()) async throws-> TextTranslationTable {
+    final public func translateAsync(_ texts: [String], from: LanguageKey, to: [LanguageKey], storeIn table: TextTranslationTable = .init()) async throws -> TextTranslationTable {
         try await makeAsync(translate(texts, from: from, to: to, storeIn: table))
     }
     /// Translate a single string from one language to another
@@ -435,7 +450,29 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
     ///   - from: the language of the original text
     ///   - to: the language to translate into
     /// - Returns: transalted string
-    final public func translateAsync(_ text: String, from: LanguageKey, to: LanguageKey) async throws-> TranslatedString {
+    final public func translateAsync(_ text: String, from: LanguageKey, to: LanguageKey) async throws -> TranslatedString {
         try await makeAsync(translate(text, from: from, to: to))
+    }
+    /// Update list of available languages
+    private func updateLanguages() {
+        var p:AnyCancellable?
+        p = MSTextTranslationLanguage.fetchPublisher().receive(on: DispatchQueue.main).sink { [weak self] compl in
+            switch compl {
+            case .failure(let error): self?.fetchLanguagesStatus = .failed(error)
+            case .finished: break;
+            }
+            if let p = p {
+                cancellables.remove(p)
+            }
+        } receiveValue: { [weak self] value in
+            self?.languages = value
+            self?.fetchLanguagesStatus = .finished
+            if let p = p {
+                cancellables.remove(p)
+            }
+        }
+        if let p = p {
+            cancellables.insert(p)
+        }
     }
 }
