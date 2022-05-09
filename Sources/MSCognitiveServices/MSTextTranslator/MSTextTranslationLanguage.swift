@@ -129,4 +129,19 @@ public struct MSTextTranslationLanguage: Codable, Hashable, Equatable {
         }
         return set
     }
+    /// Determines whether or not there is support for a specific locale
+    /// - Parameters:
+    ///   - locale: locale to search for
+    ///   - exact: indicated wehether or not to match on the whole identifier, ie region and language, and not just language
+    ///   - set: set to search
+    /// - Returns: whether or not a langauge is available, either as exact match (language and region) or partial (language only)
+    public static func hasSupport(for locale: Locale, exact:Bool = false, in set:Set<MSTextTranslationLanguage>) -> Bool {
+        if exact {
+            return set.contains { $0.locale.identifier == locale.identifier }
+        }
+        guard let code = locale.languageCode else {
+            return false
+        }
+        return set.contains { $0.code == code }
+    }
 }

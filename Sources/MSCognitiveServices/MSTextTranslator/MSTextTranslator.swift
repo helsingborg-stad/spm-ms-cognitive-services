@@ -475,4 +475,15 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             cancellables.insert(p)
         }
     }
+    /// Determines whether or not there is support for a specific locale
+    /// - Parameters:
+    ///   - locale: locale to search for
+    ///   - exact: indicated wehether or not to match on the whole identifier, ie region and language, and not just language
+    /// - Returns: whether or not a langauge is available, either as exact match (language and region) or partial (language only)
+    public func hasSupport(for locale: Locale, exact:Bool = false) -> Bool {
+        guard case .finished = fetchLanguagesStatus else {
+            return false
+        }
+        MSTextTranslationLanguage.hasSupport(for: locale, exact: exact, in: languages)
+    }
 }
