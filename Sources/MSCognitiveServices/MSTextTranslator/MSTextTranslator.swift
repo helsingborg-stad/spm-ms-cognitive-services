@@ -195,7 +195,8 @@ private func getTranslations(token: String, texts: [String], from: LanguageKey, 
             for (index, value) in texts.enumerated() {
                 var dict = [String: String]()
                 for translation in results[index].translations {
-                    dict[translation.to] = convertVariables(string: translation.text, find: "<span translate='no'>string</span>", replaceWith: "%@")
+                    let to = translation.to == "pt" ? "pt_BR" : translation.to
+                    dict[to] = convertVariables(string: translation.text, find: "<span translate='no'>string</span>", replaceWith: "%@")
                 }
                 final.append(MSTranslationResult(text: convertVariables(string: value, find: "<span translate='no'>string</span>", replaceWith: "%@"), translations: dict))
             }
@@ -207,6 +208,8 @@ private func getTranslations(token: String, texts: [String], from: LanguageKey, 
 /// The MSTextTranslator is a `TextTranslationService` used to translate text using the Microsoft Translator API.
 /// More information about the service can be found at [https://docs.microsoft.com/en-us/azure/cognitive-services/translator](https://docs.microsoft.com/en-us/azure/cognitive-services/translator)
 public final class MSTextTranslator: TextTranslationService, ObservableObject {
+
+    
     /// Configuration used to communicate with transaltor api
     public struct Config: Equatable {
         /// Cognitive service access key aquired through the azure portal
@@ -224,7 +227,12 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
     }
     /// Indicates the current voice fetch status
     @Published public var fetchLanguagesStatus:MSTTSFetchVoiceStatus = .none
-    
+    /// Currently available locales publisher
+    public var availableLocalesPublisher: AnyPublisher<Set<Locale>?, Never> {
+        $availableLocales.eraseToAnyPublisher()
+    }
+    /// Currently available locales
+    @Published public var availableLocales: Set<Locale>? = nil
     /// The authenticator used to aquire an access token
     private var authenticator: MSCognitiveAuthenticator?
     /// Logger used to log events
@@ -466,6 +474,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             }
         } receiveValue: { [weak self] value in
             self?.languages = value
+            self?.availableLocales = Set(value.map({ $0.locale }))
             self?.fetchLanguagesStatus = .finished
             if let p = p {
                 cancellables.remove(p)
@@ -481,9 +490,6 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
     ///   - exact: indicated wehether or not to match on the whole identifier, ie region and language, and not just language
     /// - Returns: whether or not a langauge is available, either as exact match (language and region) or partial (language only)
     public func hasSupport(for locale: Locale, exact:Bool = false) -> Bool {
-        guard case .finished = fetchLanguagesStatus else {
-            return false
-        }
-        MSTextTranslationLanguage.hasSupport(for: locale, exact: exact, in: languages)
+        return MSTextTranslationLanguage.hasSupport(for: locale, exact: exact, in: languages)
     }
 }
