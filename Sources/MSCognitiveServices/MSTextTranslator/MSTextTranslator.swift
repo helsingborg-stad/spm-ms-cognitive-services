@@ -365,7 +365,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         let languages = to
         if to.isEmpty {
             logger.info("No strings required translation (0 languages to translate into)")
-            return CurrentValueSubject(table).receive(on: Dispatc"hQueue.main).eraseToAnyPublisher()
+            return CurrentValueSubject(table).receive(on: DispatchQueue.main).eraseToAnyPublisher()
         }
         func translate(in language:LanguageKey, storeIn table:TextTranslationTable) {
             var c:AnyCancellable?
