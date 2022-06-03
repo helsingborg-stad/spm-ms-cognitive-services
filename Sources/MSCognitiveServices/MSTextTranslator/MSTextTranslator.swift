@@ -153,6 +153,8 @@ func convertVariables(string:String,find:String,replaceWith:String) -> String {
 ///   - to: languages to translate `texts` into
 /// - Returns: completion publisher
 private func getTranslations(token: String, texts: [String], from: LanguageKey, to: [LanguageKey]) -> AnyPublisher<[MSTranslationResult],Error> {
+    let from = from.replacingOccurrences(of: "_", with: "-")
+    let to = to.map { $0.replacingOccurrences(of: "_", with: "-")}
     guard let endpoint = URL(string: "https://api-eur.cognitive.microsofttranslator.com/translate") else {
         return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
     }
