@@ -120,7 +120,7 @@ private extension TextTranslationTable {
         for (langKey, value) in result.translations {
             self.set(value: value, for: key, in: langKey)
             for l in to {
-                guard let t = l.split(separator: "-").first else {
+                guard let t = l.split(separator: "_").first else {
                     continue
                 }
                 let lang = String(t)
@@ -365,7 +365,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         let languages = to
         if to.isEmpty {
             logger.info("No strings required translation (0 languages to translate into)")
-            return CurrentValueSubject(table).receive(on: DispatchQueue.main).eraseToAnyPublisher()
+            return CurrentValueSubject(table).receive(on: Dispatc"hQueue.main).eraseToAnyPublisher()
         }
         func translate(in language:LanguageKey, storeIn table:TextTranslationTable) {
             var c:AnyCancellable?
@@ -420,7 +420,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         return translate(texts: [text], from: from, to: to).tryMap { results -> TranslatedString in
             for res in results  {
                 for (langKey, value) in res.translations {
-                    guard let t = to.split(separator: "-").first else {
+                    guard let t = to.split(separator: "_").first else {
                         continue
                     }
                     let lang = String(t)
