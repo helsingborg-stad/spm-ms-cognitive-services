@@ -15,7 +15,7 @@ let package = Package(
             targets: ["MicrosoftCognitiveServicesSpeech"])
     ],
     dependencies: [
-        .package(url: "git@github.com/helsingborg-stad/spm-daisy", branch: "main"),
+        .package(url: "git@github.com/helsingborg-stad/spm-daisy", branch: "dev"),
         .package(url: "https://github.com/tomasgreen/AsyncPublisher", from: "0.1.1")
     ],
     targets: [
