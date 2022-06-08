@@ -17,7 +17,7 @@ let package = Package(
     dependencies: [
         .package(name: "Shout", url: "https://github.com/helsingborg-stad/spm-shout.git", from: "0.1.3"),
         .package(name: "TextTranslator", url: "https://github.com/helsingborg-stad/spm-text-translator", from: "0.2.1"),
-        .package(name: "TTS", url: "https://github.com/helsingborg-stad/spm-tts.git", from: "0.2.2"),
+        .package(name: "TTS", url: "https://github.com/helsingborg-stad/spm-tts.git", from: "0.2.3"),
         .package(name: "STT", url: "https://github.com/helsingborg-stad/spm-stt.git", from: "0.2.3"),
         .package(name: "FFTPublisher", url: "https://github.com/helsingborg-stad/spm-fft-publisher.git", from: "0.1.2"),
         .package(name: "AudioSwitchboard", url: "https://github.com/helsingborg-stad/spm-audio-switchboard.git", from: "0.1.3"),
