@@ -89,7 +89,7 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
     /// The available list of voices
     @Published public private(set) var voices = MSSpeechVoice.Directory()
     /// Pronounciations to be used when sytnhesizing
-    public var pronunciations = [MSPronunciation]() {
+    public var pronunciations = [Locale:[MSPronunciation]]() {
         didSet {
             self.synthesizer.pronunciations = pronunciations
         }
