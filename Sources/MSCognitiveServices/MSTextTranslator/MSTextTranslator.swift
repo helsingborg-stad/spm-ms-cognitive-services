@@ -32,7 +32,7 @@ private func reduce(_ texts: inout [String], _ res: [String] = [], _ count: Int 
     guard texts.isEmpty == false, let string = texts.first else {
         return (res, count)
     }
-    // utf16 count is neded for some emojis. 
+    // utf16 count is neded for some emojis.
     let numChars = string.utf16.count
     if res.count == 0, numChars > maxChars {
         throw MSTranslatorError.maximumNumberOfCharsExceeded
@@ -120,7 +120,7 @@ private extension TextTranslationTable {
         for (langKey, value) in result.translations {
             self.set(value: value, for: key, in: langKey)
             for l in to {
-                guard let t = l.split(separator: "-").first else {
+                guard let t = l.split(separator: "_").first else {
                     continue
                 }
                 let lang = String(t)
@@ -153,6 +153,8 @@ func convertVariables(string:String,find:String,replaceWith:String) -> String {
 ///   - to: languages to translate `texts` into
 /// - Returns: completion publisher
 private func getTranslations(token: String, texts: [String], from: LanguageKey, to: [LanguageKey]) -> AnyPublisher<[MSTranslationResult],Error> {
+    let from = from.replacingOccurrences(of: "_", with: "-")
+    let to = to.map { $0.replacingOccurrences(of: "_", with: "-")}
     guard let endpoint = URL(string: "https://api-eur.cognitive.microsofttranslator.com/translate") else {
         return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
     }
@@ -195,7 +197,8 @@ private func getTranslations(token: String, texts: [String], from: LanguageKey, 
             for (index, value) in texts.enumerated() {
                 var dict = [String: String]()
                 for translation in results[index].translations {
-                    dict[translation.to] = convertVariables(string: translation.text, find: "<span translate='no'>string</span>", replaceWith: "%@")
+                    let to = translation.to == "pt" ? "pt_BR" : translation.to
+                    dict[to] = convertVariables(string: translation.text, find: "<span translate='no'>string</span>", replaceWith: "%@")
                 }
                 final.append(MSTranslationResult(text: convertVariables(string: value, find: "<span translate='no'>string</span>", replaceWith: "%@"), translations: dict))
             }
@@ -207,6 +210,8 @@ private func getTranslations(token: String, texts: [String], from: LanguageKey, 
 /// The MSTextTranslator is a `TextTranslationService` used to translate text using the Microsoft Translator API.
 /// More information about the service can be found at [https://docs.microsoft.com/en-us/azure/cognitive-services/translator](https://docs.microsoft.com/en-us/azure/cognitive-services/translator)
 public final class MSTextTranslator: TextTranslationService, ObservableObject {
+
+    
     /// Configuration used to communicate with transaltor api
     public struct Config: Equatable {
         /// Cognitive service access key aquired through the azure portal
@@ -224,7 +229,12 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
     }
     /// Indicates the current voice fetch status
     @Published public var fetchLanguagesStatus:MSTTSFetchVoiceStatus = .none
-    
+    /// Currently available locales publisher
+    public var availableLocalesPublisher: AnyPublisher<Set<Locale>?, Never> {
+        $availableLocales.eraseToAnyPublisher()
+    }
+    /// Currently available locales
+    @Published public var availableLocales: Set<Locale>? = nil
     /// The authenticator used to aquire an access token
     private var authenticator: MSCognitiveAuthenticator?
     /// Logger used to log events
@@ -410,7 +420,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         return translate(texts: [text], from: from, to: to).tryMap { results -> TranslatedString in
             for res in results  {
                 for (langKey, value) in res.translations {
-                    guard let t = to.split(separator: "-").first else {
+                    guard let t = to.split(separator: "_").first else {
                         continue
                     }
                     let lang = String(t)
@@ -466,6 +476,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
             }
         } receiveValue: { [weak self] value in
             self?.languages = value
+            self?.availableLocales = Set(value.map({ $0.locale }))
             self?.fetchLanguagesStatus = .finished
             if let p = p {
                 cancellables.remove(p)
@@ -481,9 +492,6 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
     ///   - exact: indicated wehether or not to match on the whole identifier, ie region and language, and not just language
     /// - Returns: whether or not a langauge is available, either as exact match (language and region) or partial (language only)
     public func hasSupport(for locale: Locale, exact:Bool = false) -> Bool {
-        guard case .finished = fetchLanguagesStatus else {
-            return false
-        }
-        MSTextTranslationLanguage.hasSupport(for: locale, exact: exact, in: languages)
+        return MSTextTranslationLanguage.hasSupport(for: locale, exact: exact, in: languages)
     }
 }

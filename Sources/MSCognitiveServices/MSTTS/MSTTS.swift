@@ -75,6 +75,12 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
     
     /// Indicates the current voice fetch status
     @Published public var fetchVoicesStatus:MSTTSFetchVoiceStatus = .none
+    /// Currently available locales publisher
+    public var availableLocalesPublisher: AnyPublisher<Set<Locale>?, Never> {
+        $availableLocales.eraseToAnyPublisher()
+    }
+    /// Currently available locales
+    @Published public var availableLocales: Set<Locale>? = nil
     
     /// The id of the service
     public let id: TTSServiceIdentifier = "MSTTS"
@@ -207,8 +213,9 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
                 self?.cancellables.remove(p)
             }
         } receiveValue: { [weak self]  dir in
-            self?.voices = dir
+            self?.voices = dir.directory
             self?.updateAvailable()
+            self?.availableLocales = dir.locales
             self?.fetchVoicesStatus = .finished
             if let p = p {
                 self?.cancellables.remove(p)

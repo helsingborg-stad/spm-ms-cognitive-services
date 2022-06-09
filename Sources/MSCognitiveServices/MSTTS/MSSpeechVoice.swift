@@ -50,7 +50,19 @@ public struct MSSpeechVoice: Codable, Equatable {
     public typealias MSLanguage = String
     /// Dictionary of voices by language and type of voice
     public typealias Directory = [MSLanguage: [VoiceType: [MSSpeechVoice]]]
-    
+    /// Structure describing the resutls of a voices list fetch
+    public struct FetchResult {
+        public let directory:Directory
+        public let locales:Set<Locale>
+        init() {
+            directory = .init()
+            locales = .init()
+        }
+        init(directory:Directory, locales:Set<Locale>) {
+            self.directory = directory
+            self.locales = locales
+        }
+    }
     /// Type of voice
     public enum VoiceType: String, Codable {
         /// Will be deprecated at some point since Microsoft is not longer training traditional voices
@@ -128,7 +140,7 @@ public struct MSSpeechVoice: Codable, Equatable {
     ///   - token: the access token to be used
     ///   - region: the region to fetch from
     /// - Returns: a completion publisher
-    public static func publisher(token:String, region:String) -> AnyPublisher<Directory,Error> {
+    public static func publisher(token:String, region:String) -> AnyPublisher<FetchResult,Error> {
         guard let endpoint = URL(string: "https://\(region).tts.speech.microsoft.com/cognitiveservices/voices/list") else {
             return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
         }
@@ -140,7 +152,7 @@ public struct MSSpeechVoice: Codable, Equatable {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { $0.data }
             .decode(type: [MSSpeechVoice].self, decoder: d)
-            .map { voices -> Directory in
+            .map { voices -> FetchResult in
                 var res = Directory()
                 for identifier in Locale.availableIdentifiers {
                     let lang = Locale(identifier: identifier)
@@ -153,14 +165,14 @@ public struct MSSpeechVoice: Codable, Equatable {
                     dict[.neural] = arr.filter({ v in (v.locale == lang.identifier || v.language == code) && v.voiceType == .neural })
                     res[code] = dict
                 }
-                return res
+                return .init(directory: res, locales: Set(voices.map({ Locale(identifier: $0.locale) })))
             }.eraseToAnyPublisher()
     }
     /// Creates a publsiher for fetching voices from the microsoft backend
     /// - Parameter config: the configuration to be used when fetching vocies
     /// - Returns: a completion publisher
-    public static func publisher(using config: MSTTS.Config) -> AnyPublisher<Directory,Error> {
-        MSCognitiveAuthenticator(key: config.key, region: config.region).getToken().flatMap { token -> AnyPublisher<Directory,Error> in
+    public static func publisher(using config: MSTTS.Config) -> AnyPublisher<FetchResult,Error> {
+        MSCognitiveAuthenticator(key: config.key, region: config.region).getToken().flatMap { token -> AnyPublisher<FetchResult,Error> in
             Self.publisher(token: token, region: config.region)
         }.eraseToAnyPublisher()
     }

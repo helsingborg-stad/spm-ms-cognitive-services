@@ -482,13 +482,12 @@ func convertVoicePitch(_ value:Double) -> Double {
 ///   - pronunciations: the pronunciations
 /// - Returns: ssml represeting the above parameters
 func convertToSSML(utterance: TTSUtterance, voice: MSSpeechVoice, pronunciations:[MSPronunciation]) -> String {
-    let str = utterance.ssml ?? MSPronunciation.update(string: utterance.speechString, using: pronunciations)
     return """
     <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xmlns:emo="http://www.w3.org/2009/10/emotionml" xml:lang="\(voice.locale.replacingOccurrences(of: "_", with: "-"))">
         <voice name="\(voice.shortName)">
         <mstts:silence type="Leading" value="0" />
         <prosody rate="\(convertVoiceRate(utterance.voice.rate ?? 1))%" pitch="\(convertVoicePitch(utterance.voice.pitch ?? 1))%">
-            \(str)
+            \(MSPronunciation.update(string: utterance.speechString, using: pronunciations))
         </prosody>
         <mstts:silence type="Tailing" value="0" />
     </voice>

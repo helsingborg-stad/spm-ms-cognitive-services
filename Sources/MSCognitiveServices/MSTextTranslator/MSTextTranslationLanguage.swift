@@ -4,7 +4,6 @@
 //
 //  Created by Tomas Green on 2022-01-12.
 //
-
 import Foundation
 import Combine
 import TextTranslator
