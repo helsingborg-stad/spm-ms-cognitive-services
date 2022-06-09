@@ -203,6 +203,7 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
         guard let config = config else {
             return
         }
+        fetchVoicesStatus = .none
         var p:AnyCancellable?
         p = MSSpeechVoice.publisher(using: config).receive(on: DispatchQueue.main).sink { [weak self] compl in
             switch compl {
