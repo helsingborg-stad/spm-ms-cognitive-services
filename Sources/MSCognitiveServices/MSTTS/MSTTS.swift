@@ -199,7 +199,7 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
     }
     
     /// Update list of available voices
-    private func updateVoices() {
+    public func updateVoices() {
         guard let config = config else {
             return
         }
