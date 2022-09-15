@@ -20,19 +20,45 @@ public struct MSTextTranslationLanguage: Codable, Hashable, Equatable {
         case rightToLeft
     }
     /// The key used when translating a text
-    let key:LanguageKey
+    public let key:LanguageKey
     /// The name of the langauge in english
-    let name: String
+    public let name: String
     /// The name of the langauge in that language
-    let nativeName: String
+    public let nativeName: String
     /// The langauge code
-    let code: String
+    public let code: String
     /// The language script (if any)
-    let script:String?
+    public let script:String?
     /// The langauge direction
-    let direction:Direction
+    public let direction:Direction
     /// The locale of the language, might indicate a country
-    var locale:Locale
+    public var locale:Locale
+    /// Initializes a new MSTextTranslationLanguage instance
+    /// - Parameters:
+    ///   - key: The key used when translating a text
+    ///   - name: The name of the langauge in english
+    ///   - nativeName: The name of the langauge in that language
+    ///   - code: The langauge code
+    ///   - script: The language script (if any)
+    ///   - direction: The langauge direction
+    ///   - locale: The locale of the language, might indicate a country
+    public init(
+        key:LanguageKey,
+        name: String,
+        nativeName: String,
+        code: String,
+        script:String? = nil,
+        direction:Direction,
+        locale:Locale
+    ) {
+        self.key = key
+        self.name = name
+        self.nativeName = nativeName
+        self.code = code
+        self.script = script
+        self.direction = direction
+        self.locale = locale
+    }
     /// Fetch languages publisher
     /// - Parameters:
     ///   - continent: kontinent, like eur for europe. not sure if there's more than one

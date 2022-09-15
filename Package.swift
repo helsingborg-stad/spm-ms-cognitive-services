@@ -1,4 +1,4 @@
-// swift-tools-version:5.5
+// swift-tools-version:5.6
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -15,18 +15,43 @@ let package = Package(
             targets: ["MicrosoftCognitiveServicesSpeech"])
     ],
     dependencies: [
-        .package(name: "Shout", url: "https://github.com/helsingborg-stad/spm-shout.git", from: "0.1.3"),
-        .package(name: "TextTranslator", url: "https://github.com/helsingborg-stad/spm-text-translator", from: "0.2.1"),
-        .package(name: "TTS", url: "https://github.com/helsingborg-stad/spm-tts.git", from: "0.2.3"),
-        .package(name: "STT", url: "https://github.com/helsingborg-stad/spm-stt.git", from: "0.2.3"),
-        .package(name: "FFTPublisher", url: "https://github.com/helsingborg-stad/spm-fft-publisher.git", from: "0.1.2"),
-        .package(name: "AudioSwitchboard", url: "https://github.com/helsingborg-stad/spm-audio-switchboard.git", from: "0.1.3"),
-        .package(name: "AsyncPublisher", url: "https://github.com/tomasgreen/AsyncPublisher", from: "0.1.1")
+        .package(url: "https://github.com/helsingborg-stad/spm-daisy", from: "1.0.0"),
+        .package(url: "https://github.com/tomasgreen/AsyncPublisher", from: "0.1.1")
     ],
     targets: [
         .target(
             name: "MSCognitiveServices",
-            dependencies: ["TTS", "FFTPublisher", "MicrosoftCognitiveServicesSpeech", "AudioSwitchboard","Shout", "TextTranslator","STT","AsyncPublisher"]),
+            dependencies: [
+                .product(
+                    name: "TTS",
+                    package: "spm-daisy"
+                ),
+                .product(
+                    name: "STT",
+                    package: "spm-daisy"
+                ),
+                .product(
+                    name: "TextTranslator",
+                    package: "spm-daisy"
+                ),
+                .product(
+                    name: "AudioSwitchboard",
+                    package: "spm-daisy"
+                ),
+                .product(
+                    name: "Shout",
+                    package: "spm-daisy"
+                ),
+                .product(
+                    name: "AsyncPublisher",
+                    package: "AsyncPublisher"
+                ),
+                .product(
+                    name: "FFTPublisher",
+                    package: "spm-daisy"
+                ),
+                .byName(name: "MicrosoftCognitiveServicesSpeech")
+            ]),
         .testTarget(
             name: "MSCognitiveServicesTests",
             dependencies: ["MSCognitiveServices"]),

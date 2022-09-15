@@ -61,11 +61,11 @@ public struct MSPronunciation {
     let replacement: String
     /// The regepx used when replacing strings
     let regexp: NSRegularExpression?
-    /// The oroginal text to be replaced
+    /// The original  text to be replaced
     let original:String
     /// Initializes a new MSPronunciation
     /// - Parameters:
-    ///   - string: The oroginal text to be replaced
+    ///   - string: The original text to be replaced
     ///   - replacement: The regepx used when replacing strings
     public init(string: String, replacement: String) {
         self.original = string
@@ -231,7 +231,7 @@ class MSSpeechSynthesizer {
     /// Indicates whether or not word boundary processing is enabled
     var enableWordBoundary = true
     /// Pronunciations to be used for replacing strings
-    var pronunciations = [MSPronunciation]()
+    var pronunciations = [Locale:[MSPronunciation]]()
     /// Configuration used to communicate with Microsoft backend
     var config: MSTTS.Config?
     
@@ -283,7 +283,7 @@ class MSSpeechSynthesizer {
         }
         currentUtterance = utterance
         self.delegate?.speechSynthesizer(self, preparing: utterance)
-        let ssml = convertToSSML(utterance: utterance, voice: voice, pronunciations: pronunciations)
+        let ssml = convertToSSML(utterance: utterance, voice: voice, pronunciations: pronunciations[utterance.voice.locale] ?? [])
         let fileInfo = UtteranceFileInfo(utterance: utterance,ssml:ssml)
         if fileInfo.playFromCache {
             self.wordBoundaries = fileInfo.wordBoundaries
@@ -387,7 +387,7 @@ class MSSpeechSynthesizer {
                         return
                     }
                     var word = String(ssml[r2])
-                    if let rep = this.pronunciations.first(where: { $0.replacement == word}) {
+                    if let rep = (this.pronunciations[utterance.voice.locale] ?? []).first(where: { $0.replacement == word}) {
                         word = rep.original
                     }
                     guard let range = utterance.speechString.range(of: word, options: .literal, range: currentIndex ..< utterance.speechString.endIndex) else {
