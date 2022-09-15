@@ -228,7 +228,7 @@ public final class MSTextTranslator: TextTranslationService, ObservableObject {
         }
     }
     /// Indicates the current voice fetch status
-    @Published public var fetchLanguagesStatus:MSTTSFetchVoiceStatus = .none
+    @Published public var fetchLanguagesStatus:MSTextTranslatorFetchLanguagesStatus = .none
     /// Currently available locales publisher
     public var availableLocalesPublisher: AnyPublisher<Set<Locale>?, Never> {
         $availableLocales.eraseToAnyPublisher()
