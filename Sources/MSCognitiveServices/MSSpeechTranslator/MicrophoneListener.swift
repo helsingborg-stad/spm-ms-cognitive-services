@@ -45,6 +45,7 @@ class MicrophoneListener: ObservableObject {
         if fft == nil {
             return
         }
+        #if os(iOS) || os(tvOS) || os(watchOS)
         let audioSession = AVAudioSession.sharedInstance()
         if audioSession.recordPermission == .granted {
             record()
@@ -62,6 +63,9 @@ class MicrophoneListener: ObservableObject {
             }
             return
         }
+        #else
+        record()
+        #endif
     }
     /// Stop listening, relase switchboard ownership and end FFT.
     func stop() {

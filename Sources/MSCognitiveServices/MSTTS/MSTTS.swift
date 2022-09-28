@@ -8,7 +8,9 @@
 
 import AVFoundation
 import Combine
+#if canImport(UIKit)
 import UIKit
+#endif
 import TTS
 import Shout
 import FFTPublisher
