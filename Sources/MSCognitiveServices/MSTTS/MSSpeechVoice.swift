@@ -128,10 +128,14 @@ public struct MSSpeechVoice: Codable, Equatable {
     }
     /// The output format of the voice, used by the `MSAudioBufferPlayer`
     public var outputFormat: SPXSpeechSynthesisOutputFormat {
-        if sampleRateHertz == "24000" {
-            return SPXSpeechSynthesisOutputFormat.riff24Khz16BitMonoPcm
-        } else if sampleRateHertz == "16000" {
-            return SPXSpeechSynthesisOutputFormat.riff16Khz16BitMonoPcm
+        if let sampleRate = Int(sampleRateHertz) {
+            if sampleRate >= 48000 {
+                return SPXSpeechSynthesisOutputFormat.riff48Khz16BitMonoPcm
+            } else if sampleRate >= 24000 {
+                return SPXSpeechSynthesisOutputFormat.riff24Khz16BitMonoPcm
+            } else if sampleRate >= 16000 {
+                return SPXSpeechSynthesisOutputFormat.riff16Khz16BitMonoPcm
+            }
         }
         return SPXSpeechSynthesisOutputFormat.riff8Khz16BitMonoPcm
     }

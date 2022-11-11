@@ -31,6 +31,8 @@ internal class MSBufferAudioPlayer: ObservableObject {
         case unableToInitlializeOutputFormat
         /// Triggered if the audio converter cannot be configured (probaby due to unsupported formats)
         case unableToInitlializeAudioConverter
+        /// Triggered if the audio file cannot be converted
+        case unableToConvertFile
         /// Trigggered when the buffer format cannot be  determined
         case unableToInitlializeBufferFormat
         /// Triggered when an unknown buffertype is discovered
@@ -49,7 +51,7 @@ internal class MSBufferAudioPlayer: ObservableObject {
     /// Used to publish playback time of the audio file.
     let playbackTime: PassthroughSubject<Float, Never> = .init()
     /// The output format used in the AVAudioEngine
-    private let outputFormat = AVAudioFormat(commonFormat: AVAudioCommonFormat.pcmFormatFloat32, sampleRate: 24000, channels: 1, interleaved: false)
+    private let outputFormat = AVAudioFormat(commonFormat: AVAudioCommonFormat.pcmFormatFloat32, sampleRate: 48000, channels: 1, interleaved: false)
     /// Used to subscribe to the AudioSwitchboard claim publisher
     private var cancellable:AnyCancellable?
     /// Indicates whether or not the current utterance is playing
@@ -104,10 +106,20 @@ internal class MSBufferAudioPlayer: ObservableObject {
             guard let converter = AVAudioConverter(from: buffer.format, to: outputFormat) else {
                 throw AudioBufferPlayerError.unableToInitlializeAudioConverter
             }
-            guard let convertedBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: pcmBuffer.frameCapacity) else {
+            let ratio = outputFormat.sampleRate / pcmBuffer.format.sampleRate
+            guard let convertedBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: pcmBuffer.frameCapacity * UInt32(ratio)) else {
                 throw AudioBufferPlayerError.unableToInitlializeBufferFormat
             }
-            try converter.convert(to: convertedBuffer, from: pcmBuffer)
+            
+            var error: NSError?
+            let inputBlock: AVAudioConverterInputBlock = { inNumPackets, outStatus in
+                outStatus.pointee = AVAudioConverterInputStatus.haveData
+                return pcmBuffer
+            }
+            converter.convert(to: convertedBuffer, error: &error, withInputFrom: inputBlock)
+            if let _ = error {
+                throw AudioBufferPlayerError.unableToConvertFile
+            }
             schedule(buffer: convertedBuffer, id: id)
         }
     }
