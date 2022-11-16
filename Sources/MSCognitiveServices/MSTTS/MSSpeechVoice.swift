@@ -127,17 +127,14 @@ public struct MSSpeechVoice: Codable, Equatable {
         self.status = try values.decode(String.self, forKey: .status)
     }
     /// The output format of the voice, used by the `MSAudioBufferPlayer`
+    /// If input samplerate is more than 24kHz (in reality 48kHz or more), return 48kHz as output format. Otherwise, return 24kHz.
     public var outputFormat: SPXSpeechSynthesisOutputFormat {
         if let sampleRate = Int(sampleRateHertz) {
-            if sampleRate >= 48000 {
+            if sampleRate > 24000 {
                 return SPXSpeechSynthesisOutputFormat.riff48Khz16BitMonoPcm
-            } else if sampleRate >= 24000 {
-                return SPXSpeechSynthesisOutputFormat.riff24Khz16BitMonoPcm
-            } else if sampleRate >= 16000 {
-                return SPXSpeechSynthesisOutputFormat.riff16Khz16BitMonoPcm
             }
         }
-        return SPXSpeechSynthesisOutputFormat.riff8Khz16BitMonoPcm
+        return SPXSpeechSynthesisOutputFormat.riff24Khz16BitMonoPcm
     }
     /// Creates a publsiher for fetching voices from the microsoft backend
     /// - Parameters:
