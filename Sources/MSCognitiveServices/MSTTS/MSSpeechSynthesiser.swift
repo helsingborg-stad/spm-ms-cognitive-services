@@ -242,6 +242,7 @@ class MSSpeechSynthesizer {
     init(_ config: MSTTS.Config?, audioSwitchboard:AudioSwitchboard) {
         self.config = config
         self.audioPlayer = MSBufferAudioPlayer(audioSwitchboard)
+        self.clearInvalidCacheFiles()
     }
     /// Stop playback
     func stopSpeaking() {
@@ -434,6 +435,31 @@ class MSSpeechSynthesizer {
             fileInfo.deleteCache()
             self.synthesizer = nil
         }
+    }
+    ///Removes  all cached files:
+    func clearCache() {
+        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("MSTTSCache4")
+        do {
+            let fileURLs = try FileManager.default.contentsOfDirectory(at: cacheDir, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+            try fileURLs.forEach { try FileManager.default.removeItem(at: $0) }
+        } catch  { }
+    }
+    ///Clears all cache files with an unacceptable sample rate
+    func clearInvalidCacheFiles() {
+        logger.info("---- start clear cache")
+        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("MSTTSCache4")
+        do {
+            let fileURLs = try FileManager.default.contentsOfDirectory(at: cacheDir, includingPropertiesForKeys: nil, options: .skipsHiddenFiles).filter { $0.pathExtension == "wav" }
+            fileURLs.forEach { fileURL in
+                if let audioFile = try? AVAudioFile(forReading: fileURL) {
+                    if audioFile.fileFormat.sampleRate <= 16000 {
+                        try? FileManager.default.removeItem(at: fileURL)
+                        try? FileManager.default.removeItem(at: fileURL.deletingPathExtension().appendingPathExtension("json"))
+                    }
+                }
+            }
+        } catch  { }
+        logger.info("---- end clear cache")
     }
 }
 
