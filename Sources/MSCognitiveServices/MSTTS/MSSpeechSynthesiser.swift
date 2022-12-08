@@ -446,7 +446,6 @@ class MSSpeechSynthesizer {
     }
     ///Clears all cache files with an unacceptable sample rate
     func clearInvalidCacheFiles() {
-        logger.info("---- start clear cache")
         let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("MSTTSCache4")
         do {
             let fileURLs = try FileManager.default.contentsOfDirectory(at: cacheDir, includingPropertiesForKeys: nil, options: .skipsHiddenFiles).filter { $0.pathExtension == "wav" }
@@ -459,7 +458,6 @@ class MSSpeechSynthesizer {
                 }
             }
         } catch  { }
-        logger.info("---- end clear cache")
     }
 }
 
