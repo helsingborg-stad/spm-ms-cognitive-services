@@ -226,6 +226,10 @@ public class MSTTS: TTSService, MSSpeechSynthesizerDelegate, ObservableObject {
             cancellables.insert(p)
         }
     }
+    ///Removes all cached files
+    public func clearCache() {
+        synthesizer.clearCache()
+    }
     /// Updates the available property
     private func updateAvailable() {
        available = config != nil && audioAvailable && voices.isEmpty == false
